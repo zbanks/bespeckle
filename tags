@@ -4,8 +4,8 @@
 !_TAG_PROGRAM_NAME	Exuberant Ctags	//
 !_TAG_PROGRAM_URL	http://ctags.sourceforge.net	/official site/
 !_TAG_PROGRAM_VERSION	5.8	//
-Effect	bespeckle.h	/^class Effect {$/;"	c
-HSVA	bespeckle.h	/^class HSVA {$/;"	c
+Effect	bespeckle.h	/^typedef struct Effect {$/;"	s
+Effect	bespeckle.h	/^} Effect;$/;"	t	typeref:struct:Effect
 HSVA_A_MASK	bespeckle.h	/^#define HSVA_A_MASK /;"	d
 HSVA_A_SHIFT	bespeckle.h	/^#define HSVA_A_SHIFT /;"	d
 HSVA_H_MASK	bespeckle.h	/^#define HSVA_H_MASK /;"	d
@@ -14,32 +14,38 @@ HSVA_S_MASK	bespeckle.h	/^#define HSVA_S_MASK /;"	d
 HSVA_S_SHIFT	bespeckle.h	/^#define HSVA_S_SHIFT /;"	d
 HSVA_V_MASK	bespeckle.h	/^#define HSVA_V_MASK /;"	d
 HSVA_V_SHIFT	bespeckle.h	/^#define HSVA_V_SHIFT /;"	d
-RGBA	bespeckle.h	/^class RGBA {$/;"	c
+NULL	bespeckle.h	/^#define NULL /;"	d
 RGBA_B_MASK	bespeckle.h	/^#define RGBA_B_MASK /;"	d
 RGBA_B_SHIFT	bespeckle.h	/^#define RGBA_B_SHIFT /;"	d
+RGBA_EMPTY	bespeckle.h	/^#define RGBA_EMPTY /;"	d
 RGBA_G_MASK	bespeckle.h	/^#define RGBA_G_MASK /;"	d
 RGBA_G_SHIFT	bespeckle.h	/^#define RGBA_G_SHIFT /;"	d
 RGBA_R_MASK	bespeckle.h	/^#define RGBA_R_MASK /;"	d
 RGBA_R_SHIFT	bespeckle.h	/^#define RGBA_R_SHIFT /;"	d
+RGB_EMPTY	bespeckle.h	/^#define RGB_EMPTY /;"	d
 STRIP_LENGTH	bespeckle.h	/^#define STRIP_LENGTH /;"	d
 TICK_LENGTH	bespeckle.h	/^#define TICK_LENGTH /;"	d
-_	bespeckle.cpp	/^struct _{ operator char() { return N+ 256; } }; \/\/always overflow$/;"	s	file:
-a	bespeckle.h	/^		uint8_t a;$/;"	m	class:HSVA
-a	bespeckle.h	/^		uint8_t a;$/;"	m	class:RGBA
-b	bespeckle.h	/^		uint8_t b;$/;"	m	class:RGBA
+a	bespeckle.h	/^		uint8_t a;$/;"	m	struct:__anon1
+a	bespeckle.h	/^		unsigned a:5;$/;"	m	struct:__anon2
+b	bespeckle.h	/^		uint8_t b;$/;"	m	struct:__anon1
+compose	bespeckle.c	/^void compose(Effect* eff, rgb_t* strip){ $/;"	f
 fractick_t	bespeckle.h	/^typedef uint8_t fractick_t; \/\/ sizeof(fractick_t) > TICK_LENGTH$/;"	t
-g	bespeckle.h	/^		uint8_t g;$/;"	m	class:RGBA
-h	bespeckle.h	/^		uint8_t h;$/;"	m	class:HSVA
-hsva_t	bespeckle.h	/^typedef uint16_t hsva_t;$/;"	t
-main	bespeckle.cpp	/^int main(){$/;"	f
-next	bespeckle.h	/^		Effect* next;$/;"	m	class:Effect
-operator char	bespeckle.cpp	/^struct _{ operator char() { return N+ 256; } }; \/\/always overflow$/;"	f	struct:_
-pixel_rgba	bespeckle.cpp	/^RGBA Effect::pixel_rgba(position_t pos){$/;"	f	class:Effect
+g	bespeckle.h	/^		uint8_t g;$/;"	m	struct:__anon1
+h	bespeckle.h	/^		unsigned h:8;$/;"	m	struct:__anon2
+hsva_t	bespeckle.h	/^} hsva_t;$/;"	t	typeref:struct:__anon2
+hsva_to_rgba	bespeckle.c	/^rgba_t hsva_to_rgba(hsva_t in){$/;"	f
+main	bespeckle.c	/^int main(){ return 0; }$/;"	f
+mix_rgb	bespeckle.c	/^rgb_t mix_rgb(rgba_t top, rgb_t bot){$/;"	f
+mix_rgba	bespeckle.c	/^rgba_t mix_rgba(rgba_t top, rgba_t bot){$/;"	f
+next	bespeckle.h	/^	struct Effect * next;$/;"	m	struct:Effect	typeref:struct:Effect::Effect
+pack_rgba	bespeckle.c	/^rgb_t pack_rgba(rgba_t in){$/;"	f
+pixel	bespeckle.h	/^	rgba_t (* pixel)(struct Effect *, position_t);$/;"	m	struct:Effect
 position_t	bespeckle.h	/^typedef uint8_t position_t; \/\/ sizeof(position_t) > STRIP_LENGTH$/;"	t
-r	bespeckle.h	/^		uint8_t r;$/;"	m	class:RGBA
+r	bespeckle.h	/^		uint8_t r;$/;"	m	struct:__anon1
 rgb_t	bespeckle.h	/^typedef uint16_t rgb_t;$/;"	t
-s	bespeckle.h	/^		uint8_t s;$/;"	m	class:HSVA
-toRGBA	bespeckle.cpp	/^RGBA HSVA::toRGBA(void){$/;"	f	class:HSVA
-unpack	bespeckle.cpp	/^void HSVA::unpack(hsva_t packed){$/;"	f	class:HSVA
-unpack	bespeckle.cpp	/^void RGBA::unpack(rgb_t packed){$/;"	f	class:RGBA
-v	bespeckle.h	/^		uint8_t v;$/;"	m	class:HSVA
+rgba_t	bespeckle.h	/^} rgba_t;$/;"	t	typeref:struct:__anon1
+s	bespeckle.h	/^		unsigned s:5;$/;"	m	struct:__anon2
+tick	bespeckle.h	/^	uint8_t (* tick)(struct Effect *, fractick_t);$/;"	m	struct:Effect
+tick_all	bespeckle.c	/^Effect* tick_all(Effect* eff, fractick_t ft){$/;"	f
+unpack_rgb	bespeckle.c	/^rgba_t unpack_rgb(rgb_t packed){$/;"	f
+v	bespeckle.h	/^		unsigned v:5;$/;"	m	struct:__anon2

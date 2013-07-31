@@ -33,47 +33,37 @@
 #define NULL         0
 
 typedef uint16_t rgb_t;
-typedef uint16_t hsva_t;
 typedef uint8_t fractick_t; // sizeof(fractick_t) > TICK_LENGTH
 typedef uint8_t position_t; // sizeof(position_t) > STRIP_LENGTH
 
-class RGBA {
-	public:
+typedef struct {
 		uint8_t r;
 		uint8_t g;
 		uint8_t b;
 		uint8_t a;
+} rgba_t;
 
-		rgb_t pack(void);
-		void unpack(rgb_t);
-		void mix(RGBA);
-		rgb_t mixOn(rgb_t);
-};
+typedef struct {
+		unsigned h:8;
+		unsigned s:5;
+		unsigned v:5;
+		unsigned a:5;
+} hsva_t;
 
-class HSVA {
-	public:
-		uint8_t h;
-		uint8_t s;
-		uint8_t v;
-		uint8_t a;
-		
-		RGBA toRGBA(void);
 
-		hsva_t pack(void);
-		void unpack(hsva_t);
-};
+rgb_t pack_rgba(rgba_t);
+rgba_t unpack_rgb(rgb_t);
 
-class Effect {
-	public:
-		Effect* next;
-		uint8_t id;
-		uint8_t type;
+rgba_t hsva_to_rgba(hsva_t);
 
-		virtual bool tick(fractick_t);
-		//virtual rgb_t pixel_packed(position_t); // No alpha, no compositing?
-		virtual RGBA pixel_rgba(position_t);
-		virtual HSVA pixel_hsva(position_t);
-};
+rgba_t mix_rgba(rgba_t, rgba_t);
+rgb_t mix_rgb(rgba_t, rgb_t);
+
+typedef struct Effect {
+	struct Effect * next;
+	uint8_t (* tick)(struct Effect *, fractick_t);
+	rgba_t (* pixel)(struct Effect *, position_t);
+} Effect;
 
 Effect* tick_all(Effect*, fractick_t);
 void compose(Effect*, rgb_t*);
