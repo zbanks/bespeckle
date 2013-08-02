@@ -7,5 +7,5 @@ Built with the intention of controlling an RGB light strip, bespeckle aims to be
 and composing/layering lighting effects.
 
 
-- Maximum number of effects
-- 8 byte packet (maximum?)
+
+Compile to test with `gcc bespeckle.c -Wall -g -D__DEBUG_LOCAL__ -Os -o bespeckle`

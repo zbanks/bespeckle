@@ -1,8 +1,11 @@
+#ifndef __BESPECKLE_H__
+#define __BESPECKLE_H__
+
 #include <stdint.h>
 
 #define RGBA_R_MASK  0xF800 // 5 bits
 #define RGBA_R_SHIFT 11
-#define RGBA_G_MASK  0x0760 // 5 bits
+#define RGBA_G_MASK  0x07C0 // 5 bits
 #define RGBA_G_SHIFT 6
 #define RGBA_B_MASK  0x003E // 5 bits
 #define RGBA_B_SHIFT 1
@@ -22,16 +25,16 @@
 
 // Length of LED strip
 // sizeof(position_t) > STRIP_LENGTH
-#define STRIP_LENGTH 25
+#define STRIP_LENGTH 11 //25
 
 // Default color with no effects (black)
-#define RGB_EMPTY    0xFFFF
+#define RGB_EMPTY    0x0000
 
 // Default color with no effects (black) for RGBA
 #define RGBA_EMPTY   (RGBA){0, 0, 0, 0xFF}
 
 // Number of effects 
-#define NUM_EFFECTS  1
+#define NUM_EFFECTS  3
 
 //
 #define COMMAND_FLAG 0x80
@@ -103,14 +106,15 @@ struct EffectTable;
 
 typedef struct Effect {
 	struct Effect * next;
-	uint8_t uid;
 	struct EffectTable* table;
+	uint8_t uid;
 	char data[];
 } Effect;
 
 typedef struct EffectTable {
 	uint8_t eid;
 	uint8_t size;
+	void (* setup)(struct Effect *, canpacket_t*);
 	bool_t (* tick)(struct Effect *, fractick_t);
 	rgba_t (* pixel)(struct Effect *, position_t);
 	void (* msg)(struct Effect *, canpacket_t*);
@@ -128,7 +132,9 @@ void compose_all(Effect*, rgb_t*);
 bool_t msg_all(Effect*, canpacket_t*);
 
 // Add Effect ot the top of an Effect stack
-void push_effect(Effect*, Effect*);
+void push_effect(Effect**, Effect*);
 
 // Free effect memory. Malloc is part of creating an effect from a CAN msg
 inline void free_effect(Effect*);
+
+#endif

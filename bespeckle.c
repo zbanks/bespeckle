@@ -2,7 +2,28 @@
 
 #include <stdlib.h>
 
+#ifdef __DEBUG_LOCAL__
+#include <stdio.h>
+
+#else
+
+#endif
+
+void _setup_one_color(Effect* eff, canpacket_t* data){
+    *(rgba_t*) eff->data = hsva_to_rgba(*(hsva_t*) (data->data));
+}
+
 bool_t _tick_nothing(Effect* eff, fractick_t ft){
+    return CONTINUE;
+}
+
+bool_t _tick_flash(Effect* eff, fractick_t ft){
+    if(ft == 0){
+        rgba_t * rgba = (rgba_t*) eff->data;
+        rgba->r ^= 0xff;
+        rgba->g ^= 0xff;
+        rgba->b ^= 0xff;
+    }
     return CONTINUE;
 }
 
@@ -10,14 +31,34 @@ rgba_t _pixel_solid(Effect* eff, position_t pos){
     return *((rgba_t*) (eff->data));
 }
 
+rgba_t _pixel_stripe(Effect* eff, position_t pos){
+    if(pos % 3){
+        rgba_t rgba = *((rgba_t*) eff->data);
+        rgba.r ^= 0xff;
+        rgba.g ^= 0xff;
+        rgba.b ^= 0xff;
+        return rgba;
+    }else{
+        return *((rgba_t*) eff->data);
+    }
+}
+
 void _msg_nothing(Effect* eff, canpacket_t* data){
     return;
 }
 
+// Table containing all the possible effects & their virtual tables
 EffectTable effect_table[NUM_EFFECTS] = {
     // Solid color 
-    {0, sizeof(rgba_t), _tick_nothing, _pixel_solid, _msg_nothing}
+    {0, sizeof(rgba_t), _setup_one_color, _tick_nothing, _pixel_solid, _msg_nothing},
+    // Flash solid
+    {1, sizeof(rgba_t), _setup_one_color, _tick_flash, _pixel_solid, _msg_nothing},
+    // Stripes
+    {2, sizeof(rgba_t), _setup_one_color, _tick_nothing, _pixel_stripe, _msg_nothing}
 };
+
+// Effects stack (initially empty)
+Effect* effects = NULL;
 
 rgb_t pack_rgba(rgba_t in){
     return (((in.r << RGBA_R_SHIFT) & RGBA_R_MASK) | 
@@ -47,27 +88,16 @@ rgb_t mix_rgb(rgba_t top, rgb_t bot){
     // Mix this color on top of another in packed format
     // This can be *very* optimized once we decide on sizeof(a), etc
     rgb_t out = RGB_EMPTY;
-    out |= (((bot & RGBA_R_MASK) * (0xff - top.a) + top.r * top.a) / 0xff) & RGBA_R_MASK;
-    out |= (((bot & RGBA_G_MASK) * (0xff - top.a) + top.g * top.a) / 0xff) & RGBA_G_MASK;
-    out |= (((bot & RGBA_B_MASK) * (0xff - top.a) + top.b * top.a) / 0xff) & RGBA_B_MASK;
+    out |= (((bot & RGBA_R_MASK) * (0xff - top.a) + ((top.r * top.a) << RGBA_R_SHIFT)) / 0xff) & RGBA_R_MASK;
+    out |= (((bot & RGBA_G_MASK) * (0xff - top.a) + ((top.g * top.a) << RGBA_R_SHIFT)) / 0xff) & RGBA_G_MASK;
+    out |= (((bot & RGBA_B_MASK) * (0xff - top.a) + ((top.b * top.a) << RGBA_R_SHIFT)) / 0xff) & RGBA_B_MASK;
     return out;
 }
 
 rgba_t hsva_to_rgba(hsva_t in){
     //TODO
-    rgba_t out;
+    rgba_t out = {in.h, in.s, in.v, in.a};
     return out;
-}
-
-void message(canpacket_t* data){
-    if(data->cmd & COMMAND_FLAG){
-        switch(data->cmd){
-            default:
-            break;
-        }
-    }else{
-
-    }
 }
 
 Effect* tick_all(Effect* eff, fractick_t ft){
@@ -136,16 +166,32 @@ bool_t msg_all(Effect* eff, canpacket_t* data){
     return NOT_FOUND;
 }
 
-void push_effect(Effect* stack, Effect* eff){
+void push_effect(Effect** stack, Effect* eff){
+    // XXX Clean me :(
+    Effect * _stack = *stack;
+    Effect * last_stack = NULL;
     // Add to end of stack
-    for(; stack->next; stack = stack->next){
-        if(stack->next->uid == eff->uid){
-            // Existing stack element with same uid; remove it
-            free_effect(stack->next);
-            break;
-        }
+    if(*stack == NULL){
+        // If the stack was empty, that was easy
+        *stack = eff;
+        return;
     }
-    stack->next = eff;
+
+    for(; _stack; _stack = _stack->next){
+        // Loop until we get to the end of the stack, or we find one to replace
+        if(_stack->uid == eff->uid){
+            // Existing stack element with same uid; remove it
+            free_effect(_stack);
+            if(last_stack == NULL){
+                *stack = eff;
+            }else{
+                last_stack->next = eff;
+            }
+            return;
+        }
+        last_stack = _stack;
+    }
+    _stack->next = eff;
 }
 
 inline void free_effect(Effect* eff){
@@ -153,7 +199,70 @@ inline void free_effect(Effect* eff){
     free(eff);
 }
 
+void message(canpacket_t* data){
+    if(data->cmd & COMMAND_FLAG){
+        switch(data->cmd){
+            //TODO
+            default:
+            break;
+        }
+    }else{
+        int i;
+        for(i = 0; i < NUM_EFFECTS; i++){
+            if(effect_table[i].eid == data->cmd){
+                // Found a match. Attempt to malloc
+                // TODO: this might be 1-4 bytes larger than nessassary? 
+                Effect* eff = (Effect *) malloc(sizeof(Effect) + effect_table[i].size);
+                if(eff == NULL){
+                    // malloc failed! :(
+                    return;
+                }
+                // Setup effect; add to stack
+                eff->uid = data->uid;
+                eff->table = effect_table+i;
+                effect_table[i].setup(eff, data);
+                push_effect(&effects, eff);
+            }
+        }
+    }
+}
+
+#ifdef __DEBUG_LOCAL__
+
+void print_color(rgb_t color){
+    rgba_t unpacked = unpack_rgb(color);
+    printf("[%02x %02x %02x] ", unpacked.r, unpacked.g, unpacked.b);
+}
+
+void stack_length(Effect * eff){
+    for(;eff; eff = eff->next){
+        printf("%c", *eff->data);
+    }
+    printf("  ");
+}
+
+void print_strip(){
+    int i;
+    rgb_t strip[STRIP_LENGTH];
+    compose_all(effects, strip);        
+    for(i = 0; i < STRIP_LENGTH; i++){
+        print_color(strip[i]);
+    }
+}
 
 int main(){ 
+    int i;
+    canpacket_t msg1 = {0x02, 0x00, {'a', 0xcd,  0xef, 0x00, 0x00, 0x00}};
+    message(&msg1);
+
+    for(i = 0; i < 10; i++){
+        //stack_length(effects);
+        (*msg1.data)++;
+        tick_all(effects, 0);
+        print_strip();
+        printf("\n");
+    }
     return 0; 
 }
+
+#endif
