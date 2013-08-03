@@ -223,6 +223,10 @@ void compose_all(Effect* eff, rgb_t* strip){
     }
 }
 
+inline void(rgbt_* strip){
+    compose_all(effects, strip);
+}
+
 bool_t msg_all(Effect* eff, canpacket_t* data){
     for(; eff; eff = eff->next){
         if(eff->uid == data->uid){

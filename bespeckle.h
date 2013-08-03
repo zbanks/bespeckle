@@ -26,7 +26,7 @@
 
 // Length of LED strip
 // sizeof(position_t) > STRIP_LENGTH
-#define STRIP_LENGTH 255
+#define STRIP_LENGTH 50 
 
 // Default color with no effects (black)
 #define RGB_EMPTY    0x8000
@@ -137,6 +137,7 @@ Effect* tick_all(Effect*, fractick_t);
 
 // Composites a list of effects into a single set of packed pixels
 void compose_all(Effect*, rgb_t*);
+inline void populate_strip(rgb_t*);
 
 // Sends (continuation) message to the correct Effect
 bool_t msg_all(Effect*, canpacket_t*);
