@@ -61,9 +61,10 @@ EffectTable effect_table[NUM_EFFECTS] = {
 Effect* effects = NULL;
 
 rgb_t pack_rgba(rgba_t in){
-    return (((in.r >> 3 << RGBA_R_SHIFT) & RGBA_R_MASK) | 
-            ((in.g >> 3 << RGBA_G_SHIFT) & RGBA_G_MASK) | 
-            ((in.b >> 3 << RGBA_B_SHIFT) & RGBA_B_MASK));
+    return ((in.r >> 3 << RGBA_R_SHIFT) & RGBA_R_MASK) | 
+           ((in.g >> 3 << RGBA_G_SHIFT) & RGBA_G_MASK) | 
+           ((in.b >> 3 << RGBA_B_SHIFT) & RGBA_B_MASK) |
+           RGB_EMPTY;
 }
 
 rgba_t unpack_rgb(rgb_t packed){
@@ -301,6 +302,7 @@ int main(){
     int i;
     canpacket_t msg1 = {0x02, 0x00, {'a', 0xcd,  0xef, 0x00, 0x00, 0x00}};
     hsva_t color = {0, 255, 255, 0};
+    /* For debugging HSV conversion, etc
     printf("<style>div{ width: 500px; height: 10px; margin: 0; }</style>\n\n");
     for(i = 0; i < 256; i++){
         color.h = i & ~0x3;
@@ -309,6 +311,7 @@ int main(){
         printf("'>&nbsp;</div>");
         printf("\n");
     }
+    */
     message(&msg1);
 
     for(i = 0; i < 10; i++){

@@ -3,12 +3,13 @@
 
 #include <stdint.h>
 
-#define RGBA_R_SHIFT 11
+#define RGBA_R_SHIFT 5
 #define RGBA_R_MASK  (0x1f << RGBA_R_SHIFT) // 5 bits
-#define RGBA_G_SHIFT 6
+#define RGBA_G_SHIFT 0
 #define RGBA_G_MASK  (0x1f << RGBA_G_SHIFT) // 5 bits
-#define RGBA_B_SHIFT 1
+#define RGBA_B_SHIFT 10
 #define RGBA_B_MASK  (0x1f << RGBA_B_SHIFT) // 5 bits
+
 
 #define HSVA_H_MASK  0xFC00 // 6 bits
 #define HSVA_H_SHIFT 10
@@ -28,7 +29,7 @@
 #define STRIP_LENGTH 11 //25
 
 // Default color with no effects (black)
-#define RGB_EMPTY    0x0000
+#define RGB_EMPTY    0x8000
 
 // Default color with no effects (black) for RGBA
 #define RGBA_EMPTY   (RGBA){0, 0, 0, 0xFF}
@@ -49,7 +50,7 @@
 
 
 
-// Packed RGB value, as sent to the LED strip. RRRR RGGG GGBB BBB0?
+// Packed RGB value, as sent to the LED strip. 1BBB BBRR RRRG GGGG
 typedef uint16_t rgb_t;
 // Fractional Tick, out of TICK_LENGTH. If TICK_LENGTH >= 255, use uint16_t
 typedef uint8_t fractick_t; // sizeof(fractick_t) > TICK_LENGTH
