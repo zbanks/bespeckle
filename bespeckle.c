@@ -16,7 +16,7 @@ void _setup_copy(Effect* eff, canpacket_t* data){
     //TODO optimize
     int i;
     for(i = 0; i < 6; i++){
-        *(uint8_t *) eff->data = *((uint8_t*) data->data + i);
+        *((uint8_t *) eff->data + i) = *((uint8_t*) data->data + i);
     }
 }
 
@@ -58,9 +58,9 @@ rgba_t _pixel_stripe(Effect* eff, position_t pos){
 }
 
 rgba_t _pixel_rainbow(Effect* eff, position_t pos){
-    static hsva_t color = {23, 0x1f, 0x1f, 0x1f};
-//color.h = (*((uint8_t*) eff->data) + pos * *((uint8_t*) eff->data + 1) ) & 0xff;
-    color.h = pos;
+    static hsva_t color = {23, 0xff, 0xff, 0xff};
+    color.h = (*((uint8_t*) eff->data) + pos * *((uint8_t*) eff->data + 1) ) & 0xff;
+    //color.h = pos;
     return hsva_to_rgba(color);
 }
 
@@ -77,7 +77,7 @@ EffectTable effect_table[NUM_EFFECTS] = {
     // Stripes
     {2, sizeof(rgba_t), _setup_one_color, _tick_nothing, _pixel_stripe, _msg_nothing},
     // Rainbow!
-    {3, 2, _setup_copy, _tick_increment, _pixel_rainbow, _msg_nothing},
+    {3, 2,              _setup_copy, _tick_increment, _pixel_rainbow, _msg_nothing},
 };
 
 // Effects stack (initially empty)
@@ -345,17 +345,21 @@ void print_strip_html(){
 
 int main(){ 
     int i;
-    canpacket_t msg1 = {0x00, 'a', {0, 0xff,  0xf0, 0x00, 0x00, 0x00}};
+    canpacket_t msg1 = {0x03, 'a', {0x80, 253,  0xf0, 0x00, 0x00, 0x00}};
+    canpacket_t msg_tick = {CMD_TICK, 0, {0, 0, 0, 0, 0, 0}};
     //hsva_t color = {0, 255, 255, 0};
     //printf("<style>div{ width: 500px; height: 10px; margin: 0; }</style>\n\n");
-    printf("<style>span{ width: 5; height: 5; margin: 0px; padding: 0px; display: inline-block; }\ndiv{font-size: 0; height: 5px; margin-bottom: 3px;}</style>\n\n");
+    printf("<style>span{ width: 5; height: 5; margin: 0px; padding: 0px; display: inline-block; }\ndiv{font-size: 0; height: 5px; margin-bottom: 0px;}</style>\n\n");
+    message(&msg1);
 
     for(i = 0; i < 256; i++){
+        /*
         ((hsva_t *) msg1.data)->h = i;
-        ((hsva_t *) msg1.data)->s = 31;
-        ((hsva_t *) msg1.data)->v = 31;
-        ((hsva_t *) msg1.data)->a = 31;
-        message(&msg1);
+        ((hsva_t *) msg1.data)->s = 0xff;
+        ((hsva_t *) msg1.data)->v = 0xff;
+        ((hsva_t *) msg1.data)->a = 0xff;
+        */
+        message(&msg_tick);
         print_strip_html();
 
         /*
