@@ -61,16 +61,17 @@ EffectTable effect_table[NUM_EFFECTS] = {
 Effect* effects = NULL;
 
 rgb_t pack_rgba(rgba_t in){
-    return (((in.r << RGBA_R_SHIFT) & RGBA_R_MASK) | 
-            ((in.g << RGBA_G_SHIFT) & RGBA_G_MASK) | 
-            ((in.b << RGBA_B_SHIFT) & RGBA_B_MASK));
+    return (((in.r >> 3 << RGBA_R_SHIFT) & RGBA_R_MASK) | 
+            ((in.g >> 3 << RGBA_G_SHIFT) & RGBA_G_MASK) | 
+            ((in.b >> 3 << RGBA_B_SHIFT) & RGBA_B_MASK));
 }
 
 rgba_t unpack_rgb(rgb_t packed){
     rgba_t out;
-    out.r = (uint8_t) ((packed & RGBA_R_MASK) >> RGBA_R_SHIFT);
-    out.g = (uint8_t) ((packed & RGBA_G_MASK) >> RGBA_G_SHIFT);
-    out.b = (uint8_t) ((packed & RGBA_B_MASK) >> RGBA_B_SHIFT);
+#define FIVE(x) ((x << 3) | (x >> 2))
+    out.r = (uint8_t) FIVE((packed & RGBA_R_MASK) >> RGBA_R_SHIFT);
+    out.g = (uint8_t) FIVE((packed & RGBA_G_MASK) >> RGBA_G_SHIFT);
+    out.b = (uint8_t) FIVE((packed & RGBA_B_MASK) >> RGBA_B_SHIFT);
     out.a = 0xFF;
     return out;
 }
@@ -95,8 +96,50 @@ rgb_t mix_rgb(rgba_t top, rgb_t bot){
 }
 
 rgba_t hsva_to_rgba(hsva_t in){
-    //TODO
-    rgba_t out = {in.h, in.s, in.v, in.a};
+    // Convert HSVA to RGBA.  Hue from 0-254, sat, val, & alpha are 5 bit (0-31)
+    // TODO: Optimize for the values we actually have
+    //
+    rgba_t out = {0, 0, 0, in.a};
+
+    uint8_t hue = in.h;
+    uint8_t sat = (in.s << 3) | (in.s >> 2);
+    uint8_t val = (in.v << 3) | (in.v >> 2);
+
+    if (hue == 255) hue = 254;
+    uint16_t chroma = (val) * (sat);
+    uint16_t m = 255*(val) - chroma;
+    signed long X =(42-abs((hue)%85-42));
+    X *= chroma;
+    
+    uint8_t x8b = X/(255 * 42);
+    uint8_t c8b = chroma/255;
+    uint8_t m8b = m/255;
+    
+    if (hue < 42) {
+        out.r = c8b + m8b;
+        out.g = x8b + m8b;
+        out.b = m8b;
+    } else if (hue < 84) {
+        out.r = x8b + m8b;
+        out.g = c8b + m8b;
+        out.b = m8b;
+    } else if (hue < 127) {
+        out.r = m8b;
+        out.g = c8b + m8b;
+        out.b = x8b + m8b;
+    } else if (hue < 169) {
+        out.r = m8b;
+        out.g = x8b + m8b;
+        out.b = c8b + m8b;
+    } else if (hue < 212) {
+        out.r = x8b + m8b;
+        out.g = m8b;
+        out.b = c8b + m8b;
+    } else {
+        out.r = c8b + m8b;
+        out.g = m8b;
+        out.b = x8b + m8b;
+    }
     return out;
 }
 
@@ -231,7 +274,11 @@ void message(canpacket_t* data){
 
 void print_color(rgb_t color){
     rgba_t unpacked = unpack_rgb(color);
-    printf("[%02x %02x %02x] ", unpacked.r, unpacked.g, unpacked.b);
+    printf("#%02x%02x%02x ", (unpacked.r), (unpacked.g), (unpacked.b));
+}
+
+void print_ucolor(rgba_t unpacked){
+    printf("#%02x%02x%02x ", (unpacked.r), (unpacked.g), (unpacked.b));
 }
 
 void stack_length(Effect * eff){
@@ -253,6 +300,15 @@ void print_strip(){
 int main(){ 
     int i;
     canpacket_t msg1 = {0x02, 0x00, {'a', 0xcd,  0xef, 0x00, 0x00, 0x00}};
+    hsva_t color = {0, 255, 255, 0};
+    printf("<style>div{ width: 500px; height: 10px; margin: 0; }</style>\n\n");
+    for(i = 0; i < 256; i++){
+        color.h = i & ~0x3;
+        printf("<div style='background-color:");
+        print_color(pack_rgba(hsva_to_rgba(color)));
+        printf("'>&nbsp;</div>");
+        printf("\n");
+    }
     message(&msg1);
 
     for(i = 0; i < 10; i++){
