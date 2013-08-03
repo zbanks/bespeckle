@@ -35,7 +35,7 @@
 #define RGBA_EMPTY   (RGBA){0, 0, 0, 0xFF}
 
 // Number of effects 
-#define NUM_EFFECTS  4
+#define NUM_EFFECTS  5
 
 // Commands
 #define FLAG_CMD     0x80

@@ -31,12 +31,17 @@ bool_t _tick_increment(Effect* eff, fractick_t ft){
     return CONTINUE;
 }
 
+bool_t _tick_inc_chase(Effect* eff, fractick_t ft){
+    if(ft == 0){
+        *((uint8_t *) eff->data + sizeof(rgba_t)) = (1 + *((uint8_t *) eff->data + sizeof(rgba_t))) % STRIP_LENGTH;
+    }
+    return CONTINUE;
+}
+
 bool_t _tick_flash(Effect* eff, fractick_t ft){
     if(ft == 0){
         rgba_t * rgba = (rgba_t*) eff->data;
-        rgba->r ^= 0xff;
-        rgba->g ^= 0xff;
-        rgba->b ^= 0xff;
+        rgba->a ^= 0xff;
     }
     return CONTINUE;
 }
@@ -55,6 +60,14 @@ rgba_t _pixel_stripe(Effect* eff, position_t pos){
     }else{
         return *((rgba_t*) eff->data);
     }
+}
+
+rgba_t _pixel_chase(Effect* eff, position_t pos){
+    static rgba_t clear = {0,0,0,0};
+    if(pos == *((uint8_t*) eff->data + sizeof(rgba_t))){
+        return *((rgba_t*) eff->data);
+    }
+    return clear;
 }
 
 rgba_t _pixel_rainbow(Effect* eff, position_t pos){
@@ -78,6 +91,8 @@ EffectTable effect_table[NUM_EFFECTS] = {
     {2, sizeof(rgba_t), _setup_one_color, _tick_nothing, _pixel_stripe, _msg_nothing},
     // Rainbow!
     {3, 2,              _setup_copy, _tick_increment, _pixel_rainbow, _msg_nothing},
+    // Chase
+    {4, sizeof(rgba_t)+1, _setup_copy, _tick_inc_chase, _pixel_chase, _msg_nothing},
 };
 
 // Effects stack (initially empty)
@@ -223,7 +238,7 @@ void compose_all(Effect* eff, rgb_t* strip){
     }
 }
 
-inline void(rgbt_* strip){
+inline void populate_strip(rgb_t* strip){
     compose_all(effects, strip);
 }
 
@@ -350,6 +365,7 @@ void print_strip_html(){
 int main(){ 
     int i;
     canpacket_t msg1 = {0x03, 'a', {0x80, 253,  0xf0, 0x00, 0x00, 0x00}};
+    canpacket_t msg2 = {0x04, 'b', {0x80, 0, 0, 0xff, 0x00, 0x00}};
     canpacket_t msg_tick = {CMD_TICK, 0, {0, 0, 0, 0, 0, 0}};
     //hsva_t color = {0, 255, 255, 0};
     //printf("<style>div{ width: 500px; height: 10px; margin: 0; }</style>\n\n");
@@ -365,6 +381,9 @@ int main(){
         */
         message(&msg_tick);
         print_strip_html();
+        if(i == 100){
+            message(&msg2);
+        }
 
         /*
         data[0] = i;
@@ -381,6 +400,7 @@ int main(){
     message(&msg1);
     //printf("<style>span{ width: 20px; height: 20px; margin: 0px; padding: 0px; display: inline-block; }\ndiv{font-size: 0; margin-bottom: 3px;}</style>\n\n");
 
+    /*
     for(i = 0; i < 10; i++){
         //stack_length(effects);
         /*
@@ -388,12 +408,13 @@ int main(){
         msg1.cmd = i % 3;
         (*msg1.data)++;
         //message(&msg1);
-        */
+        /
         tick_all(effects, 0);
         print_strip_html();
         //stack_length(effects);
         printf("\n");
     }
+    */
     /*
     msg1.cmd = 0xff;
     message(&msg1);
