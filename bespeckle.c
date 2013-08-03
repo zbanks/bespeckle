@@ -10,10 +10,24 @@
 #endif
 
 void _setup_one_color(Effect* eff, canpacket_t* data){
-    *(rgba_t*) eff->data = hsva_to_rgba(*(hsva_t*) (data->data));
+    *(rgba_t*) eff->data = (rgba_t) hsva_to_rgba(*(hsva_t*) (data->data));
+}
+void _setup_copy(Effect* eff, canpacket_t* data){
+    //TODO optimize
+    int i;
+    for(i = 0; i < 6; i++){
+        *(uint8_t *) eff->data = *((uint8_t*) data->data + i);
+    }
 }
 
 bool_t _tick_nothing(Effect* eff, fractick_t ft){
+    return CONTINUE;
+}
+
+bool_t _tick_increment(Effect* eff, fractick_t ft){
+    if(ft == 0){
+        *((uint8_t *) eff->data) = 1 + *((uint8_t *) eff->data);
+    }
     return CONTINUE;
 }
 
@@ -28,7 +42,7 @@ bool_t _tick_flash(Effect* eff, fractick_t ft){
 }
 
 rgba_t _pixel_solid(Effect* eff, position_t pos){
-    return *((rgba_t*) (eff->data));
+    return *((rgba_t*) eff->data);
 }
 
 rgba_t _pixel_stripe(Effect* eff, position_t pos){
@@ -43,6 +57,13 @@ rgba_t _pixel_stripe(Effect* eff, position_t pos){
     }
 }
 
+rgba_t _pixel_rainbow(Effect* eff, position_t pos){
+    static hsva_t color = {23, 0x1f, 0x1f, 0x1f};
+//color.h = (*((uint8_t*) eff->data) + pos * *((uint8_t*) eff->data + 1) ) & 0xff;
+    color.h = pos;
+    return hsva_to_rgba(color);
+}
+
 void _msg_nothing(Effect* eff, canpacket_t* data){
     return;
 }
@@ -54,7 +75,9 @@ EffectTable effect_table[NUM_EFFECTS] = {
     // Flash solid
     {1, sizeof(rgba_t), _setup_one_color, _tick_flash, _pixel_solid, _msg_nothing},
     // Stripes
-    {2, sizeof(rgba_t), _setup_one_color, _tick_nothing, _pixel_stripe, _msg_nothing}
+    {2, sizeof(rgba_t), _setup_one_color, _tick_nothing, _pixel_stripe, _msg_nothing},
+    // Rainbow!
+    {3, 2, _setup_copy, _tick_increment, _pixel_rainbow, _msg_nothing},
 };
 
 // Effects stack (initially empty)
@@ -88,11 +111,11 @@ rgba_t mix_rgba(rgba_t top, rgba_t bot){
 
 rgb_t mix_rgb(rgba_t top, rgb_t bot){
     // Mix this color on top of another in packed format
-    // This can be *very* optimized once we decide on sizeof(a), etc
+    // This can be *very* optimized once we decide on sizeof(a), etc TODO
     rgb_t out = RGB_EMPTY;
-    out |= (((bot & RGBA_R_MASK) * (0xff - top.a) + ((top.r * top.a) << RGBA_R_SHIFT)) / 0xff) & RGBA_R_MASK;
-    out |= (((bot & RGBA_G_MASK) * (0xff - top.a) + ((top.g * top.a) << RGBA_R_SHIFT)) / 0xff) & RGBA_G_MASK;
-    out |= (((bot & RGBA_B_MASK) * (0xff - top.a) + ((top.b * top.a) << RGBA_R_SHIFT)) / 0xff) & RGBA_B_MASK;
+    out |= (((bot & RGBA_R_MASK) * (0xff - top.a) + ((top.r * top.a) << RGBA_R_SHIFT >> 3)) / 0xff) & RGBA_R_MASK;
+    out |= (((bot & RGBA_G_MASK) * (0xff - top.a) + ((top.g * top.a) << RGBA_G_SHIFT >> 3)) / 0xff) & RGBA_G_MASK;
+    out |= (((bot & RGBA_B_MASK) * (0xff - top.a) + ((top.b * top.a) << RGBA_B_SHIFT >> 3)) / 0xff) & RGBA_B_MASK;
     return out;
 }
 
@@ -235,7 +258,7 @@ void push_effect(Effect** stack, Effect* eff){
         }
         last_stack = _stack;
     }
-    _stack->next = eff;
+    last_stack->next = eff;
 }
 
 inline void free_effect(Effect* eff){
@@ -244,9 +267,23 @@ inline void free_effect(Effect* eff){
 }
 
 void message(canpacket_t* data){
-    if(data->cmd & COMMAND_FLAG){
+    Effect* e;
+    if(data->cmd & FLAG_CMD){
         switch(data->cmd){
-            //TODO
+            case CMD_TICK:
+                tick_all(effects, data->uid);
+            break;
+            case CMD_MSG:
+                msg_all(effects, data);
+            break;
+            case CMD_RESET:
+                // Reset strip, remove all effects
+                while(effects){
+                    e = effects;
+                    effects = e->next;
+                    free_effect(e);
+                }
+            break;
             default:
             break;
         }
@@ -256,7 +293,7 @@ void message(canpacket_t* data){
             if(effect_table[i].eid == data->cmd){
                 // Found a match. Attempt to malloc
                 // TODO: this might be 1-4 bytes larger than nessassary? 
-                Effect* eff = (Effect *) malloc(sizeof(Effect) + effect_table[i].size);
+                Effect* eff = malloc(sizeof(Effect) + effect_table[i].size);
                 if(eff == NULL){
                     // malloc failed! :(
                     return;
@@ -278,13 +315,9 @@ void print_color(rgb_t color){
     printf("#%02x%02x%02x ", (unpacked.r), (unpacked.g), (unpacked.b));
 }
 
-void print_ucolor(rgba_t unpacked){
-    printf("#%02x%02x%02x ", (unpacked.r), (unpacked.g), (unpacked.b));
-}
-
 void stack_length(Effect * eff){
     for(;eff; eff = eff->next){
-        printf("%c", *eff->data);
+        printf("%c", eff->uid);
     }
     printf("  ");
 }
@@ -297,30 +330,70 @@ void print_strip(){
         print_color(strip[i]);
     }
 }
+void print_strip_html(){
+    int i;
+    rgb_t strip[STRIP_LENGTH];
+    compose_all(effects, strip);        
+    printf("<div>\n");
+    for(i = 0; i < STRIP_LENGTH; i++){
+        printf("\t<span style='background-color:");
+        print_color(strip[i]);
+        printf("'>%d</span>\n", i);
+    }
+    printf("</div>\n");
+}
 
 int main(){ 
     int i;
-    canpacket_t msg1 = {0x02, 0x00, {'a', 0xcd,  0xef, 0x00, 0x00, 0x00}};
-    hsva_t color = {0, 255, 255, 0};
-    /* For debugging HSV conversion, etc
-    printf("<style>div{ width: 500px; height: 10px; margin: 0; }</style>\n\n");
+    canpacket_t msg1 = {0x00, 'a', {0, 0xff,  0xf0, 0x00, 0x00, 0x00}};
+    //hsva_t color = {0, 255, 255, 0};
+    //printf("<style>div{ width: 500px; height: 10px; margin: 0; }</style>\n\n");
+    printf("<style>span{ width: 5; height: 5; margin: 0px; padding: 0px; display: inline-block; }\ndiv{font-size: 0; height: 5px; margin-bottom: 3px;}</style>\n\n");
+
     for(i = 0; i < 256; i++){
-        color.h = i & ~0x3;
+        ((hsva_t *) msg1.data)->h = i;
+        ((hsva_t *) msg1.data)->s = 31;
+        ((hsva_t *) msg1.data)->v = 31;
+        ((hsva_t *) msg1.data)->a = 31;
+        message(&msg1);
+        print_strip_html();
+
+        /*
+        data[0] = i;
+        color = *((hsva_t*) data);
+        //color.h = i;
         printf("<div style='background-color:");
         print_color(pack_rgba(hsva_to_rgba(color)));
         printf("'>&nbsp;</div>");
         printf("\n");
+        */
+        //*/
     }
-    */
+    
     message(&msg1);
+    //printf("<style>span{ width: 20px; height: 20px; margin: 0px; padding: 0px; display: inline-block; }\ndiv{font-size: 0; margin-bottom: 3px;}</style>\n\n");
 
     for(i = 0; i < 10; i++){
         //stack_length(effects);
+        /*
+        msg1.uid = i + 'a';
+        msg1.cmd = i % 3;
         (*msg1.data)++;
+        //message(&msg1);
+        */
         tick_all(effects, 0);
-        print_strip();
+        print_strip_html();
+        //stack_length(effects);
         printf("\n");
     }
+    /*
+    msg1.cmd = 0xff;
+    message(&msg1);
+    print_strip_html();
+    //stack_length(effects);
+    printf("\n");
+    */
+
     return 0; 
 }
 

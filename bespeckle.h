@@ -26,7 +26,7 @@
 
 // Length of LED strip
 // sizeof(position_t) > STRIP_LENGTH
-#define STRIP_LENGTH 11 //25
+#define STRIP_LENGTH 255
 
 // Default color with no effects (black)
 #define RGB_EMPTY    0x8000
@@ -35,10 +35,13 @@
 #define RGBA_EMPTY   (RGBA){0, 0, 0, 0xFF}
 
 // Number of effects 
-#define NUM_EFFECTS  3
+#define NUM_EFFECTS  4
 
-//
-#define COMMAND_FLAG 0x80
+// Commands
+#define FLAG_CMD     0x80
+#define CMD_TICK     0x80
+#define CMD_MSG      0x81
+#define CMD_RESET    0xFF
 
 #define CONTINUE     0
 #define STOP		 1
@@ -71,10 +74,16 @@ typedef struct {
 // Representation of HSV as sent over the wire
 // XXX Subject to change when optimized!
 typedef struct {
-		unsigned h:8;
-		unsigned s:5;
-		unsigned v:5;
-		unsigned a:5;
+	uint8_t h;
+	uint8_t s;
+	uint8_t v;
+	uint8_t a;
+	/*
+	unsigned h:8;
+	unsigned s:5;
+	unsigned v:5;
+	unsigned a:5;
+	*/
 } hsva_t;
 
 // Convert between different color formats
@@ -109,7 +118,7 @@ typedef struct Effect {
 	struct Effect * next;
 	struct EffectTable* table;
 	uint8_t uid;
-	char data[];
+	uint8_t data[];
 } Effect;
 
 typedef struct EffectTable {
