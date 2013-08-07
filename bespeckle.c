@@ -9,9 +9,33 @@
 
 #endif
 
+/* Effect functions
+ *
+ * void setup(Effect*, canpacket_t*)
+ *  Called when the effect is first created. Space for data has been allocated, but not initialized
+ *  The first argument is the effect struct.
+ *
+ * bool_t tick(Effect*, fractick_t) 
+ *  Called on a 'tick', or fraction of a beat from 0-239. Tick 0 is *always* called once per beat.
+ *  Return `CONTINUE` or `STOP`. `STOP` means the effect is done and can be removed from the stack.
+ *
+ * rgba_t pixel(Effect*, position_t)
+ *  Called once per pixel once per frame. Should be *very* fast!!!
+ *  The second argument is the index of the pixel along the strip
+ *
+ * bool_t msg(Effect*, canpacket_t*)
+ *  Called when the controller recieves a message for an existing effect.
+ *  The unmodified packet is sent as a second argument.
+ *
+ */
+
+// setup - Treat the data as an HSVA value, convert it to RGBA, and store it in the effect data
 void _setup_one_color(Effect* eff, canpacket_t* data){
+
     *(rgba_t*) eff->data = (rgba_t) hsva_to_rgba(*(hsva_t*) (data->data));
 }
+
+// setup - Copy the 6 bytes from the packet into the effect data
 void _setup_copy(Effect* eff, canpacket_t* data){
     //TODO optimize
     int i;
@@ -20,10 +44,12 @@ void _setup_copy(Effect* eff, canpacket_t* data){
     }
 }
 
+// tick - do nothing, never stop.
 bool_t _tick_nothing(Effect* eff, fractick_t ft){
     return CONTINUE;
 }
 
+// tick - increment the first byte of the effect data, never stop
 bool_t _tick_increment(Effect* eff, fractick_t ft){
     if(ft == 0){
         *((uint8_t *) eff->data) = 1 + *((uint8_t *) eff->data);
@@ -31,6 +57,8 @@ bool_t _tick_increment(Effect* eff, fractick_t ft){
     return CONTINUE;
 }
 
+// tick - increment the 5th byte of the effect data mod STRIP_LENGTH, never stop
+// effect data holds an RGBA value followed by a counter
 bool_t _tick_inc_chase(Effect* eff, fractick_t ft){
     if(ft == 0){
         *((uint8_t *) eff->data + sizeof(rgba_t)) = (1 + *((uint8_t *) eff->data + sizeof(rgba_t))) % STRIP_LENGTH;
@@ -38,6 +66,7 @@ bool_t _tick_inc_chase(Effect* eff, fractick_t ft){
     return CONTINUE;
 }
 
+// tick - flash the alpha channel on every beat, never stop
 bool_t _tick_flash(Effect* eff, fractick_t ft){
     if(ft == 0){
         rgba_t * rgba = (rgba_t*) eff->data;
@@ -46,10 +75,12 @@ bool_t _tick_flash(Effect* eff, fractick_t ft){
     return CONTINUE;
 }
 
+// pixel - solid color across the strip: the first bytes of effect data
 rgba_t _pixel_solid(Effect* eff, position_t pos){
     return *((rgba_t*) eff->data);
 }
 
+// pixel - similar to _pixel_solid, but with inverted colors every 3 pixels
 rgba_t _pixel_stripe(Effect* eff, position_t pos){
     if(pos % 3){
         rgba_t rgba = *((rgba_t*) eff->data);
@@ -62,6 +93,7 @@ rgba_t _pixel_stripe(Effect* eff, position_t pos){
     }
 }
 
+// pixel - clear in most pixels, but the stored color at a given position (see _tick_inc_chase)
 rgba_t _pixel_chase(Effect* eff, position_t pos){
     static rgba_t clear = {0,0,0,0};
     if(pos == *((uint8_t*) eff->data + sizeof(rgba_t))){
@@ -70,18 +102,28 @@ rgba_t _pixel_chase(Effect* eff, position_t pos){
     return clear;
 }
 
+// pixel - rainbow! first byte of effect data is offset, second byte is 'rate' and multiplied by position.
 rgba_t _pixel_rainbow(Effect* eff, position_t pos){
-    static hsva_t color = {23, 0xff, 0xff, 0xff};
+    static hsva_t color = {0x00, 0xff, 0xff, 0xff};
     color.h = (*((uint8_t*) eff->data) + pos * *((uint8_t*) eff->data + 1) ) & 0xff;
     //color.h = pos;
     return hsva_to_rgba(color);
 }
 
-void _msg_nothing(Effect* eff, canpacket_t* data){
-    return;
+// msg - do nothing, continue
+bool_t _msg_nothing(Effect* eff, canpacket_t* data){
+    return CONTINUE;
 }
 
-// Table containing all the possible effects & their virtual tables
+/* End Effect Functions */
+
+/* Effect Table containing all the possible effects & their virtual functions
+ * id - effect id. enables a device to not implement a particular effect. must be unique
+ * size - size of `data` array in the effect struct. How much data does the effect need?
+ * setup, tick, pixel, msg - functions, as described above
+ *
+ *  id  size           setup             tick           pixel         msg
+ */
 EffectTable effect_table[NUM_EFFECTS] = {
     // Solid color 
     {0, sizeof(rgba_t), _setup_one_color, _tick_nothing, _pixel_solid, _msg_nothing},
@@ -98,6 +140,7 @@ EffectTable effect_table[NUM_EFFECTS] = {
 // Effects stack (initially empty)
 Effect* effects = NULL;
 
+/* Begin color functions */
 rgb_t pack_rgba(rgba_t in){
     return ((in.r >> 3 << RGBA_R_SHIFT) & RGBA_R_MASK) | 
            ((in.g >> 3 << RGBA_G_SHIFT) & RGBA_G_MASK) | 
@@ -107,6 +150,7 @@ rgb_t pack_rgba(rgba_t in){
 
 rgba_t unpack_rgb(rgb_t packed){
     rgba_t out;
+    //FIXME
 #define FIVE(x) ((x << 3) | (x >> 2))
     out.r = (uint8_t) FIVE((packed & RGBA_R_MASK) >> RGBA_R_SHIFT);
     out.g = (uint8_t) FIVE((packed & RGBA_G_MASK) >> RGBA_G_SHIFT);
@@ -182,6 +226,8 @@ rgba_t hsva_to_rgba(hsva_t in){
     return out;
 }
 
+/* End color functions */
+
 Effect* tick_all(Effect* eff, fractick_t ft){
     // Send a tick event to every effect
     // If ft is 0, check for deleted effects
@@ -245,7 +291,9 @@ inline void populate_strip(rgb_t* strip){
 bool_t msg_all(Effect* eff, canpacket_t* data){
     for(; eff; eff = eff->next){
         if(eff->uid == data->uid){
-            eff->table->msg(eff, data);
+            if(eff->table->msg(eff, data)){
+                //TODO
+            }
             return FOUND;
         }
     }
@@ -327,6 +375,9 @@ void message(canpacket_t* data){
     }
 }
 
+/* These are functions that are just useful for debugging without a microcontroller
+ * Compile with -D__DEBUG_LOCAL__ to use
+ */
 #ifdef __DEBUG_LOCAL__
 
 void print_color(rgb_t color){

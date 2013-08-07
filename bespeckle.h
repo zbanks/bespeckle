@@ -127,7 +127,7 @@ typedef struct EffectTable {
 	void (* setup)(struct Effect *, canpacket_t*);
 	bool_t (* tick)(struct Effect *, fractick_t);
 	rgba_t (* pixel)(struct Effect *, position_t);
-	void (* msg)(struct Effect *, canpacket_t*);
+	bool_t (* msg)(struct Effect *, canpacket_t*);
 } EffectTable;
 
 // Calls `tick` on every Effect in the linked list;
