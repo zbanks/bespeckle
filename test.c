@@ -38,8 +38,8 @@ void print_strip_html(){
 
 int main(){ 
     int i;
-    canpacket_t msg1 = {0x03, 'a', {0x80, 253,  0xf0, 0x00, 0x00, 0x00}};
-    canpacket_t msg2 = {0x04, 'b', {0x80, 0, 0, 0xff, 0x00, 0x00}};
+    canpacket_t msg1 = {0x03, 'a', {0x80, 20, 23, 0x00, 0x00, 0x00}};
+    canpacket_t msg2 = {0x04, 'b', {0x22, 0x22, 0x22, 0xff, 0x10, 0x10}};
     canpacket_t msg_tick = {CMD_TICK, 0, {0, 0, 0, 0, 0, 0}};
     //hsva_t color = {0, 255, 255, 0};
     //printf("<style>div{ width: 500px; height: 10px; margin: 0; }</style>\n\n");
@@ -53,9 +53,14 @@ int main(){
         ((hsva_t *) msg1.data)->v = 0xff;
         ((hsva_t *) msg1.data)->a = 0xff;
         */
+        msg_tick.uid = (i % 4) * (240 / 4);
         message(&msg_tick);
         print_strip_html();
-        if(i == 100){
+        if(i == 10){
+            message(&msg2);
+        }
+        if(i == 250){
+            msg2.cmd = CMD_MSG;
             message(&msg2);
         }
 

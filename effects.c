@@ -1,4 +1,22 @@
 #include "bespeckle.h"
+#include "string.h"
+
+// Number of effects 
+#define NUM_EFFECTS  6
+
+/* Structs used to store data for effects
+ * Useful when you need to store more than a single value, and don't want to explicity code
+ * out the pointer arithmetic. Makes code more readable.
+ */
+
+typedef struct edata_char4 {
+    uint8_t xs[4];
+} edata_char4;
+
+typedef struct edata_rgba1_char4 {
+    rgba_t cs[1]; 
+    uint8_t xs[4];
+} edata_rgba1_char4;
 
 /* Effect functions
  *
@@ -28,11 +46,7 @@ void _setup_one_color(Effect* eff, canpacket_t* data){
 
 // setup - Copy the 6 bytes from the packet into the effect data
 void _setup_copy(Effect* eff, canpacket_t* data){
-    //TODO optimize
-    int i;
-    for(i = 0; i < 6; i++){
-        *((uint8_t *) eff->data + i) = *((uint8_t*) data->data + i);
-    }
+    memcpy(eff->data, data->data, 6);
 }
 
 // tick - do nothing, never stop.
@@ -42,8 +56,9 @@ bool_t _tick_nothing(Effect* eff, fractick_t ft){
 
 // tick - increment the first byte of the effect data, never stop
 bool_t _tick_increment(Effect* eff, fractick_t ft){
+    edata_char4 *edata = eff->data;
     if(ft == 0){
-        *((uint8_t *) eff->data) = 1 + *((uint8_t *) eff->data);
+        edata->xs[0]++;
     }
     return CONTINUE;
 }
@@ -51,8 +66,19 @@ bool_t _tick_increment(Effect* eff, fractick_t ft){
 // tick - increment the 5th byte of the effect data mod STRIP_LENGTH, never stop
 // effect data holds an RGBA value followed by a counter
 bool_t _tick_inc_chase(Effect* eff, fractick_t ft){
+    edata_rgba1_char4 *edata = eff->data;
     if(ft == 0){
-        *((uint8_t *) eff->data + sizeof(rgba_t)) = (1 + *((uint8_t *) eff->data + sizeof(rgba_t))) % STRIP_LENGTH;
+        if(edata->xs[0] == 0 || edata->xs[0] + (edata->xs[1] & 0x7f) >= STRIP_LENGTH){
+            edata->xs[1] ^= 0x80;
+        }
+        edata->xs[0] += edata->xs[1] & 0x80 ? -1 : 1;
+    }
+    if(edata->xs[1] & 0x80){
+        edata->xs[2] = edata->cs[0].a * ft / 240;
+        edata->xs[3] = edata->cs[0].a - edata->xs[2];
+    }else{
+        edata->xs[3] = edata->cs[0].a * ft / 240;
+        edata->xs[2] = edata->cs[0].a - edata->xs[3];
     }
     return CONTINUE;
 }
@@ -86,9 +112,18 @@ rgba_t _pixel_stripe(Effect* eff, position_t pos){
 
 // pixel - clear in most pixels, but the stored color at a given position (see _tick_inc_chase)
 rgba_t _pixel_chase(Effect* eff, position_t pos){
-    static rgba_t clear = {0,0,0,0};
-    if(pos == *((uint8_t*) eff->data + sizeof(rgba_t))){
-        return *((rgba_t*) eff->data);
+    const static rgba_t clear = {0,0,0,0};
+    edata_rgba1_char4 *edata = eff->data;
+    rgba_t color = edata->cs[0];
+
+    if(pos == edata->xs[0]){
+        color.a = edata->xs[2];
+        return color;
+    }else if(pos > edata->xs[0] && pos < edata->xs[0] + (edata->xs[1] & 0x7f)){
+        return color;
+    }else if(pos == edata->xs[0] + (edata->xs[1] & 0x7f)){
+        color.a = edata->xs[3];
+        return color;
     }
     return clear;
 }
@@ -96,13 +131,40 @@ rgba_t _pixel_chase(Effect* eff, position_t pos){
 // pixel - rainbow! first byte of effect data is offset, second byte is 'rate' and multiplied by position.
 rgba_t _pixel_rainbow(Effect* eff, position_t pos){
     static hsva_t color = {0x00, 0xff, 0xff, 0xff};
-    color.h = (*((uint8_t*) eff->data) + pos * *((uint8_t*) eff->data + 1) ) & 0xff;
+    edata_char4 *edata = eff->data;
+    color.h = (edata->xs[0] * edata->xs[1] + pos * edata->xs[2]) & 0xff;
     //color.h = pos;
     return hsva_to_rgba(color);
 }
 
+// pixel - color across the strip where xs[0] <= pos <= xs[1]. Useful for vu meter
+rgba_t _pixel_vu(Effect* eff, position_t pos){
+    const static rgba_t clear = {0,0,0,0};
+    edata_rgba1_char4 *edata = eff->data;
+    if(edata->xs[0] <= pos && pos <= edata->xs[1]){
+        return edata->cs[0];
+    }else{
+        return clear;
+    }
+}
+
 // msg - do nothing, continue
 bool_t _msg_nothing(Effect* eff, canpacket_t* data){
+    return CONTINUE;
+}
+
+// msg - do nothing, stop
+bool_t _msg_stop(Effect* eff, canpacket_t* data){
+    return STOP;
+}
+
+// msg - copy first 4 bytes to xs; use 5th byte for stop
+bool_t _msg_store_char4(Effect* eff, canpacket_t* data){
+    edata_char4 *edata = eff->data;
+    if(data->data[5]){
+        return STOP;
+    }
+    memcpy(edata->xs, data->data, 4);
     return CONTINUE;
 }
 
@@ -113,18 +175,20 @@ bool_t _msg_nothing(Effect* eff, canpacket_t* data){
  * size - size of `data` array in the effect struct. How much data does the effect need?
  * setup, tick, pixel, msg - functions, as described above
  *
- *  id  size           setup             tick           pixel         msg
+ *  id  size                          setup             tick             pixel           msg
  */
-EffectTable effect_table[NUM_EFFECTS] = {
+EffectTable const effect_table[NUM_EFFECTS] = {
     // Solid color 
-    {0, sizeof(rgba_t), _setup_one_color, _tick_nothing, _pixel_solid, _msg_nothing},
-    // Flash solid
-    {1, sizeof(rgba_t), _setup_one_color, _tick_flash, _pixel_solid, _msg_nothing},
-    // Stripes
-    {2, sizeof(rgba_t), _setup_one_color, _tick_nothing, _pixel_stripe, _msg_nothing},
-    // Rainbow!
-    {3, 2,              _setup_copy, _tick_increment, _pixel_rainbow, _msg_nothing},
+    {0, sizeof(rgba_t),               _setup_one_color, _tick_nothing,   _pixel_solid,   _msg_stop},
+    // Flash solid                   
+    {1, sizeof(rgba_t),               _setup_one_color, _tick_flash,     _pixel_solid,   _msg_stop},
+    // Stripes                       
+    {2, sizeof(rgba_t),               _setup_one_color, _tick_nothing,   _pixel_stripe,  _msg_stop},
+    // Rainbow!                      
+    {3, 6,                            _setup_copy,      _tick_increment, _pixel_rainbow, _msg_stop},
     // Chase
-    {4, sizeof(rgba_t)+1, _setup_copy, _tick_inc_chase, _pixel_chase, _msg_nothing},
+    {4, sizeof(edata_rgba1_char4),    _setup_copy,      _tick_inc_chase, _pixel_chase,   _msg_stop},
+    // VU meter
+    {5, sizeof(edata_rgba1_char4),    _setup_copy,      _tick_nothing,   _pixel_vu,      _msg_store_char4},
 };
 

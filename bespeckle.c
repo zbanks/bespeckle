@@ -154,16 +154,35 @@ inline void populate_strip(rgb_t* strip){
     compose_all(effects, strip);
 }
 
-bool_t msg_all(Effect* eff, canpacket_t* data){
-    for(; eff; eff = eff->next){
-        if(eff->uid == data->uid){
-            if(eff->table->msg(eff, data)){
-                //TODO
+Effect* msg_all(Effect* eff, canpacket_t* data){
+    // Pass on canpacket data to matching effect
+    // Return new top of stack
+    Effect* prev = NULL;
+    Effect* start = eff;
+
+    while(eff){
+        if(eff->uid == data->uid){ // Match uid
+            if(eff->table->msg(eff, data)){ // Send message
+                // The effect asked to quit
+                if(prev != NULL){
+                    // In the middle/end
+                    prev->next = eff->next;
+                    free_effect(eff);
+                    eff = prev->next;
+                }else{
+                    // At the beginning
+                    start = eff->next;
+                    free_effect(eff);
+                    eff = start;
+                }
             }
-            return FOUND;
+            return start;
+        }else{
+            prev = eff;
+            eff = eff->next;
         }
     }
-    return NOT_FOUND;
+    return start;
 }
 
 void push_effect(Effect** stack, Effect* eff){
@@ -204,10 +223,10 @@ void message(canpacket_t* data){
     if(data->cmd & FLAG_CMD){
         switch(data->cmd){
             case CMD_TICK:
-                tick_all(effects, data->uid);
+                effects = tick_all(effects, data->uid);
             break;
             case CMD_MSG:
-                msg_all(effects, data);
+                effects = msg_all(effects, data);
             break;
             case CMD_RESET:
                 // Reset strip, remove all effects

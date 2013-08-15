@@ -34,9 +34,6 @@
 // Default color with no effects (black) for RGBA
 #define RGBA_EMPTY   (RGBA){0, 0, 0, 0xFF}
 
-// Number of effects 
-#define NUM_EFFECTS  5
-
 // Commands
 #define FLAG_CMD     0x80
 #define CMD_TICK     0x80
@@ -140,7 +137,7 @@ void compose_all(Effect*, rgb_t*);
 inline void populate_strip(rgb_t*);
 
 // Sends (continuation) message to the correct Effect
-bool_t msg_all(Effect*, canpacket_t*);
+Effect* msg_all(Effect*, canpacket_t*);
 
 // Add Effect ot the top of an Effect stack
 void push_effect(Effect**, Effect*);
