@@ -63,6 +63,8 @@ bool_t _tick_increment(Effect* eff, fractick_t ft){
     return CONTINUE;
 }
 
+
+
 // tick - increment the 5th byte of the effect data mod STRIP_LENGTH, never stop
 // effect data holds an RGBA value followed by a counter
 bool_t _tick_inc_chase(Effect* eff, fractick_t ft){
@@ -79,6 +81,18 @@ bool_t _tick_inc_chase(Effect* eff, fractick_t ft){
     }else{
         edata->xs[3] = edata->cs[0].a * ft / 240;
         edata->xs[2] = edata->cs[0].a - edata->xs[3];
+    }
+    return CONTINUE;
+}
+
+bool_t _tick_inc_spr(Effect* eff, fractick_t ft){
+    edata_rgba1_char4 *edata = eff->data;
+    if(ft == 0){
+        if(edata->xs[0] >= STRIP_LENGTH){
+            edata->xs[0] = 0;
+        } else {
+            edata->xs[0]++;
+        }
     }
     return CONTINUE;
 }
@@ -127,6 +141,53 @@ rgba_t _pixel_chase(Effect* eff, position_t pos){
     }
     return clear;
 }
+// pixel - 
+rgba_t _pixel_ltr(Effect* eff, position_t pos){
+    const static rgba_t clear = {0,0,0,0};
+    edata_rgba1_char4 *edata = eff->data;
+    rgba_t color = edata->cs[0];
+
+    if(pos < edata->xs[0]){
+        return color;
+    }
+    return clear; 
+}
+
+// pixel - 
+rgba_t _pixel_ltr(Effect* eff, position_t pos){
+    const static rgba_t clear = {0,0,0,0};
+    edata_rgba1_char4 *edata = eff->data;
+    rgba_t color = edata->cs[0];
+
+    if(STRIP_LENGTH - pos < edata->xs[0]){
+        return color;
+    }
+    return clear; 
+}
+
+rgba_t _pixel_spr(Effect* eff, position_t pos){
+    const static rgba_t clear = {0,0,0,0};
+    edata_rgba1_char4 *edata = eff->data;
+    rgba_t color = edata->cs[0];
+
+    if(HALF_LENGTH- edata->xs[0]< pos && pos < HALF_LENGTH + edata->xs[0]){
+        return color;
+    }
+    return clear; 
+}
+
+rgba_t _pixel_shr(Effect* eff, position_t pos){
+    const static rgba_t clear = {0,0,0,0};
+    edata_rgba1_char4 *edata = eff->data;
+    rgba_t color = edata->cs[0];
+
+    if(HALF_LENGTH- edata-<xs[0]< pos || pos > HALF_LENGTH+ edata->xs[0]){
+        return color;
+    }
+    return clear; 
+}
+
+
 
 // pixel - rainbow! first byte of effect data is offset, second byte is 'rate' and multiplied by position.
 rgba_t _pixel_rainbow(Effect* eff, position_t pos){
@@ -147,6 +208,8 @@ rgba_t _pixel_vu(Effect* eff, position_t pos){
         return clear;
     }
 }
+
+
 
 // msg - do nothing, continue
 bool_t _msg_nothing(Effect* eff, canpacket_t* data){
@@ -189,6 +252,21 @@ EffectTable const effect_table[NUM_EFFECTS] = {
     // Chase
     {4, sizeof(edata_rgba1_char4),    _setup_copy,      _tick_inc_chase, _pixel_chase,   _msg_stop},
     // VU meter
-    {5, sizeof(edata_rgba1_char4),    _setup_copy,      _tick_nothing,   _pixel_vu,      _msg_store_char4},
+    {5, sizeof(edata_rgba1_char4),    _setup_copy,      _tick_inc_spr, _pixel_ito,   _msg_stop},
+    // expand
+    {6, sizeof(edata_rgba1_char4),    _setup_copy,      _tick_inc_spr, _pixel_spr,   _msg_stop},
+	//  shrink
+	{7, sizeof(edata_rgba1_char4),    _setup_copy,      _tick_inc_spr, _pixel_shr, _msg_stop), 
+	// ltr
+	{8, sizeof(edata_rgba1_char4),    _setup_copy,      _tick_inc_spr, _pixel_ltr,    _msg_stop), 
+	//rtl
+    {9, sizeof(edata_rgba1_char4),    _setup_copy,      _tick_inc_spr, _pixel_rtl,    _msg_stop), 
+	// scattering
+	//{10, sizeof(edata_rgba1_char4),   _setup_copy,      _tick_flash,   _pixel_scat,   _msg_stop), 
+	// slide in left(pos)+stop
+	//slide in right
+	//dashed line ltr
+	
+	//give all signal for colorchange, speedchange
 };
 
