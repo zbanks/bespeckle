@@ -150,7 +150,7 @@ void compose_all(Effect* eff, rgb_t* strip){
     }
 }
 
-inline void populate_strip(rgb_t* strip){
+void populate_strip(rgb_t* strip){
     compose_all(effects, strip);
 }
 
@@ -213,7 +213,7 @@ void push_effect(Effect** stack, Effect* eff){
     last_stack->next = eff;
 }
 
-inline void free_effect(Effect* eff){
+void free_effect(Effect* eff){
     // Deallocate space for effect
     free(eff);
 }
@@ -252,8 +252,9 @@ void message(canpacket_t* data){
                 }
                 // Setup effect; add to stack
                 eff->uid = data->uid;
-                eff->table = effect_table+i;
+                eff->table = (EffectTable*)(effect_table+i);
                 effect_table[i].setup(eff, data);
+                eff->next=NULL;
                 push_effect(&effects, eff);
             }
         }

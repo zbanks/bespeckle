@@ -2,6 +2,7 @@
 #define __BESPECKLE_H__
 
 #include <stdint.h>
+#include "led_strip_driver.h"
 
 #define RGBA_R_SHIFT 5
 #define RGBA_R_MASK  (0x1f << RGBA_R_SHIFT) // 5 bits
@@ -26,7 +27,7 @@
 
 // Length of LED strip
 // sizeof(position_t) > STRIP_LENGTH
-#define STRIP_LENGTH 50 
+//#define STRIP_LENGTH 1
 
 // Default color with no effects (black)
 #define RGB_EMPTY    0x8000
@@ -46,7 +47,7 @@
 #define FOUND        0
 #define NOT_FOUND    1
 
-#define NULL         0
+//#define NULL         0
 
 
 
@@ -134,7 +135,7 @@ Effect* tick_all(Effect*, fractick_t);
 
 // Composites a list of effects into a single set of packed pixels
 void compose_all(Effect*, rgb_t*);
-inline void populate_strip(rgb_t*);
+void populate_strip(rgb_t*);
 
 // Sends (continuation) message to the correct Effect
 Effect* msg_all(Effect*, canpacket_t*);
@@ -143,6 +144,6 @@ Effect* msg_all(Effect*, canpacket_t*);
 void push_effect(Effect**, Effect*);
 
 // Free effect memory. Malloc is part of creating an effect from a CAN msg
-inline void free_effect(Effect*);
+void free_effect(Effect*);
 
 #endif

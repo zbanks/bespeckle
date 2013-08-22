@@ -41,7 +41,7 @@ typedef struct edata_rgba1_char4 {
 // setup - Treat the data as an HSVA value, convert it to RGBA, and store it in the effect data
 void _setup_one_color(Effect* eff, canpacket_t* data){
 
-    *(rgba_t*) eff->data = (rgba_t) hsva_to_rgba(*(hsva_t*) (data->data));
+    *(rgba_t*) eff->data = hsva_to_rgba(*(hsva_t*) (data->data));
 }
 
 // setup - Copy the 6 bytes from the packet into the effect data
@@ -56,7 +56,7 @@ bool_t _tick_nothing(Effect* eff, fractick_t ft){
 
 // tick - increment the first byte of the effect data, never stop
 bool_t _tick_increment(Effect* eff, fractick_t ft){
-    edata_char4 *edata = eff->data;
+    edata_char4 *edata = (edata_char4*)eff->data;
     if(ft == 0){
         edata->xs[0]++;
     }
@@ -66,7 +66,7 @@ bool_t _tick_increment(Effect* eff, fractick_t ft){
 // tick - increment the 5th byte of the effect data mod STRIP_LENGTH, never stop
 // effect data holds an RGBA value followed by a counter
 bool_t _tick_inc_chase(Effect* eff, fractick_t ft){
-    edata_rgba1_char4 *edata = eff->data;
+    edata_rgba1_char4 *edata = (edata_rgba1_char4*)eff->data;
     if(ft == 0){
         if(edata->xs[0] == 0 || edata->xs[0] + (edata->xs[1] & 0x7f) >= STRIP_LENGTH){
             edata->xs[1] ^= 0x80;
@@ -113,7 +113,7 @@ rgba_t _pixel_stripe(Effect* eff, position_t pos){
 // pixel - clear in most pixels, but the stored color at a given position (see _tick_inc_chase)
 rgba_t _pixel_chase(Effect* eff, position_t pos){
     const static rgba_t clear = {0,0,0,0};
-    edata_rgba1_char4 *edata = eff->data;
+    edata_rgba1_char4 *edata = (edata_rgba1_char4*)eff->data;
     rgba_t color = edata->cs[0];
 
     if(pos == edata->xs[0]){
@@ -131,7 +131,7 @@ rgba_t _pixel_chase(Effect* eff, position_t pos){
 // pixel - rainbow! first byte of effect data is offset, second byte is 'rate' and multiplied by position.
 rgba_t _pixel_rainbow(Effect* eff, position_t pos){
     static hsva_t color = {0x00, 0xff, 0xff, 0xff};
-    edata_char4 *edata = eff->data;
+    edata_char4 *edata = (edata_char4*)eff->data;
     color.h = (edata->xs[0] * edata->xs[1] + pos * edata->xs[2]) & 0xff;
     //color.h = pos;
     return hsva_to_rgba(color);
@@ -140,7 +140,7 @@ rgba_t _pixel_rainbow(Effect* eff, position_t pos){
 // pixel - color across the strip where xs[0] <= pos <= xs[1]. Useful for vu meter
 rgba_t _pixel_vu(Effect* eff, position_t pos){
     const static rgba_t clear = {0,0,0,0};
-    edata_rgba1_char4 *edata = eff->data;
+    edata_rgba1_char4 *edata = (edata_rgba1_char4*)eff->data;
     if(edata->xs[0] <= pos && pos <= edata->xs[1]){
         return edata->cs[0];
     }else{
@@ -160,7 +160,7 @@ bool_t _msg_stop(Effect* eff, canpacket_t* data){
 
 // msg - copy first 4 bytes to xs; use 5th byte for stop
 bool_t _msg_store_char4(Effect* eff, canpacket_t* data){
-    edata_char4 *edata = eff->data;
+    edata_char4 *edata = (edata_char4*)eff->data;
     if(data->data[5]){
         return STOP;
     }
