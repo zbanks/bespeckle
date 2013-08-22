@@ -29,6 +29,9 @@
 // sizeof(position_t) > STRIP_LENGTH
 //#define STRIP_LENGTH 1
 
+//midway point
+#define HALF_LENGTH 25
+
 // Default color with no effects (black)
 #define RGB_EMPTY    0x8000
 
