@@ -154,7 +154,7 @@ rgba_t _pixel_ltr(Effect* eff, position_t pos){
 }
 
 // pixel - 
-rgba_t _pixel_ltr(Effect* eff, position_t pos){
+rgba_t _pixel_rtl(Effect* eff, position_t pos){
     const static rgba_t clear = {0,0,0,0};
     edata_rgba1_char4 *edata = eff->data;
     rgba_t color = edata->cs[0];
@@ -181,7 +181,7 @@ rgba_t _pixel_shr(Effect* eff, position_t pos){
     edata_rgba1_char4 *edata = eff->data;
     rgba_t color = edata->cs[0];
 
-    if(HALF_LENGTH- edata-<xs[0]< pos || pos > HALF_LENGTH+ edata->xs[0]){
+    if(HALF_LENGTH - edata->xs[0] < pos || pos > HALF_LENGTH + edata->xs[0]){
         return color;
     }
     return clear; 
@@ -252,15 +252,15 @@ EffectTable const effect_table[NUM_EFFECTS] = {
     // Chase
     {4, sizeof(edata_rgba1_char4),    _setup_copy,      _tick_inc_chase, _pixel_chase,   _msg_stop},
     // VU meter
-    {5, sizeof(edata_rgba1_char4),    _setup_copy,      _tick_inc_spr, _pixel_ito,   _msg_stop},
+    {5, sizeof(edata_rgba1_char4),    _setup_copy,      _tick_nothing, _pixel_vu,   _msg_store_char4},
     // expand
     {6, sizeof(edata_rgba1_char4),    _setup_copy,      _tick_inc_spr, _pixel_spr,   _msg_stop},
 	//  shrink
-	{7, sizeof(edata_rgba1_char4),    _setup_copy,      _tick_inc_spr, _pixel_shr, _msg_stop), 
+	{7, sizeof(edata_rgba1_char4),    _setup_copy,      _tick_inc_spr, _pixel_shr, _msg_stop}, 
 	// ltr
-	{8, sizeof(edata_rgba1_char4),    _setup_copy,      _tick_inc_spr, _pixel_ltr,    _msg_stop), 
+	{8, sizeof(edata_rgba1_char4),    _setup_copy,      _tick_inc_spr, _pixel_ltr,    _msg_stop}, 
 	//rtl
-    {9, sizeof(edata_rgba1_char4),    _setup_copy,      _tick_inc_spr, _pixel_rtl,    _msg_stop), 
+    {9, sizeof(edata_rgba1_char4),    _setup_copy,      _tick_inc_spr, _pixel_rtl,    _msg_stop}, 
 	// scattering
 	//{10, sizeof(edata_rgba1_char4),   _setup_copy,      _tick_flash,   _pixel_scat,   _msg_stop), 
 	// slide in left(pos)+stop

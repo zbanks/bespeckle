@@ -185,6 +185,22 @@ Effect* msg_all(Effect* eff, canpacket_t* data){
     return start;
 }
 
+void pop_effect(Effect** stack, uint8_t uid){
+    Effect * _stack;
+    Effect * last_stack = NULL;
+    for(; _stack; last_stack = _stack, _stack = _stack->next){
+        if(_stack->uid == uid){
+            if(last_stack == NULL){
+                *stack = _stack->next;
+            }else{
+                last_stack->next = _stack->next;
+            }
+            free_effect(_stack);
+            return;
+        }
+    }
+}
+
 void push_effect(Effect** stack, Effect* eff){
     // XXX Clean me :(
     Effect * _stack = *stack;
@@ -221,23 +237,30 @@ void free_effect(Effect* eff){
 void message(canpacket_t* data){
     Effect* e;
     if(data->cmd & FLAG_CMD){
-        switch(data->cmd){
-            case CMD_TICK:
-                effects = tick_all(effects, data->uid);
-            break;
-            case CMD_MSG:
-                effects = msg_all(effects, data);
-            break;
-            case CMD_RESET:
-                // Reset strip, remove all effects
-                while(effects){
-                    e = effects;
-                    effects = e->next;
-                    free_effect(e);
-                }
-            break;
-            default:
-            break;
+        if(data->cmd & FLAG_CMD_MSG){
+            effects = msg_all(effects, data);
+        }else{
+            switch(data->cmd){
+                case CMD_TICK:
+                    effects = tick_all(effects, data->uid);
+                break;
+                case CMD_MSG:
+                    effects = msg_all(effects, data);
+                break;
+                case CMD_STOP:
+                    pop_effect(&effects, data->uid);
+                case CMD_RESET:
+                case CMD_REBOOT:
+                    // Reset strip, remove all effects
+                    while(effects){
+                        e = effects;
+                        effects = e->next;
+                        free_effect(e);
+                    }
+                break;
+                default:
+                break;
+            }
         }
     }else{
         int i;

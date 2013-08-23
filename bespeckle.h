@@ -2,7 +2,14 @@
 #define __BESPECKLE_H__
 
 #include <stdint.h>
+#ifndef NOHARDWARE
 #include "led_strip_driver.h"
+#else
+// Length of LED strip
+// sizeof(position_t) > STRIP_LENGTH
+#define STRIP_LENGTH 25
+
+#endif
 
 #define RGBA_R_SHIFT 5
 #define RGBA_R_MASK  (0x1f << RGBA_R_SHIFT) // 5 bits
@@ -25,9 +32,6 @@
 // sizeof(fractick_t) > TICK_LENGTH
 #define TICK_LENGTH  240
 
-// Length of LED strip
-// sizeof(position_t) > STRIP_LENGTH
-//#define STRIP_LENGTH 1
 
 //midway point
 #define HALF_LENGTH 25
@@ -40,12 +44,17 @@
 
 // Commands
 #define FLAG_CMD     0x80
+#define FLAG_CMD_MSG 0xC0 // This gives 6 bits for additional msg parameters
+
 #define CMD_TICK     0x80
 #define CMD_MSG      0x81
-#define CMD_RESET    0xFF
+#define CMD_STOP     0x82
+
+#define CMD_RESET    0x83
+#define CMD_REBOOT   0x84 // TODO
 
 #define CONTINUE     0
-#define STOP		 1
+#define STOP         1
 
 #define FOUND        0
 #define NOT_FOUND    1
@@ -142,6 +151,9 @@ void populate_strip(rgb_t*);
 
 // Sends (continuation) message to the correct Effect
 Effect* msg_all(Effect*, canpacket_t*);
+
+// Remove an Effect from the Effect stack via uid
+void pop_effect(Effect**, uint8_t);
 
 // Add Effect ot the top of an Effect stack
 void push_effect(Effect**, Effect*);
