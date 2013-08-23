@@ -2,7 +2,7 @@
 #include "string.h"
 
 // Number of effects 
-#define NUM_EFFECTS  6
+#define NUM_EFFECTS  12
 
 /* Structs used to store data for effects
  * Useful when you need to store more than a single value, and don't want to explicity code
@@ -45,12 +45,12 @@ void _setup_one_color(Effect* eff, canpacket_t* data){
 
 // setup - Copy the bytes from the packet into the effect data. Checks size! Zeros everything else
 void _setup_copy(Effect* eff, canpacket_t* data){
-    if(eff->table->size < sizeof(data->data)){
-        memcpy(eff->data, data->data, sizeof(data->data));
+    if(eff->table->size < CAN_DATA_SIZE){
+        memcpy(eff->data, data->data, eff->table->size);
     }else{
-        memcpy(eff->data, data->data, sizeof(data->data));
+        memcpy(eff->data, data->data, CAN_DATA_SIZE);
         // Set remaining bits to 0 since the uC won't do that for us
-        memset(eff->data + sizeof(data->data), 0x00, eff->table->size - sizeof(data->data));
+        memset(eff->data + CAN_DATA_SIZE, 0x00, eff->table->size - CAN_DATA_SIZE);
     }
 }
 
@@ -115,20 +115,21 @@ bool_t _tick_flash(Effect* eff, fractick_t ft){
 bool_t _tick_fadein(Effect* eff, fractick_t ft){
     edata_rgba1_char4 *edata = eff->data;
     uint8_t last_val = edata->xs[0];
-    uint8_t val;
+    int val;
     // Approximate as 255 ticks/beat
+    // This is a good template for timing 
     if(last_val != 0xff){
         if(ft == 0){
-            edata->xs[0] += 1 << (edata->xs[1] & 0x7);
+            edata->xs[0] += 0xff >> (edata->xs[1] & 0x7);
         }
-        val = edata->xs[0] + ft >> (edata->xs[1] & 0x7);
+        val = edata->xs[0] + (ft >> (edata->xs[1] & 0x7));
 
-        if(val < last_val || edata->xs[0] < last_val){
+        if(val >= 0xff || edata->xs[0] < last_val){
             // Overflow; stop the fade 
             edata->xs[0] = 0xff;
             edata->xs[2] = 0xff;
         }else{
-            edata->xs[2] = val;
+            edata->xs[2] = val & 0xff;
         }
     }
     return CONTINUE;
@@ -269,10 +270,12 @@ bool_t _msg_store_char4(Effect* eff, canpacket_t* data){
 
 // msg - copy data bytes over the effect data 
 bool_t _msg_copy(Effect* eff, canpacket_t* data){
-    if(eff->table->size < sizeof(data->data)){
-        memcpy(eff->data, data->data, sizeof(data->data));
+    if(eff->table->size < CAN_DATA_SIZE){
+        memcpy(eff->data, data->data, eff->table->size);
     }else{
-        memcpy(eff->data, data->data, sizeof(data->data));
+        memcpy(eff->data, data->data, CAN_DATA_SIZE);
+        // Set remaining bits to 0 since the uC won't do that for us
+        memset(eff->data + CAN_DATA_SIZE, 0x00, eff->table->size - CAN_DATA_SIZE);
     }
     return CONTINUE;
 }
@@ -316,7 +319,7 @@ EffectTable const effect_table[NUM_EFFECTS] = {
 	//give all signal for colorchange, speedchange
     // Solid color; RGBA; msg changes color
     {0x10, sizeof(rgba_t),               _setup_copy, _tick_nothing,   _pixel_solid,   _msg_copy},
-    // Fade in; RGBA; msg changes color; data[5] is 'rate'
+    // Fade in; RGBA; msg changes color; data[5] is start, data[6] is 'rate'
     {0x12, sizeof(edata_rgba1_char4),    _setup_copy, _tick_fadein,    _pixel_solid_alpha2,   _msg_copy},
 
 };

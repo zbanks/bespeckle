@@ -39,7 +39,7 @@ void print_strip_html(){
 int main(){ 
     int i;
     canpacket_t msg1 = {0x03, 'a', {0x80, 20, 23, 0x00, 0x00, 0x00}};
-    canpacket_t msg2 = {0x11, 'b', {0x22, 0x22, 0x22, 0x00, 0x00, 0x10}};
+    canpacket_t msg2 = {0x12 , 'b', {0x00, 0x00, 0x00, 0xff, 0x00, 0x02}};
     canpacket_t msg_tick = {CMD_TICK, 0, {0, 0, 0, 0, 0, 0}};
     //hsva_t color = {0, 255, 255, 0};
     //printf("<style>div{ width: 500px; height: 10px; margin: 0; }</style>\n\n");
@@ -53,7 +53,7 @@ int main(){
         ((hsva_t *) msg1.data)->v = 0xff;
         ((hsva_t *) msg1.data)->a = 0xff;
         */
-        msg_tick.uid = (i % 4) * (240 / 4);
+        msg_tick.uid = (i % 40) * (240 / 40);
         message(&msg_tick);
         print_strip_html();
         if(i == 10){
@@ -76,13 +76,13 @@ int main(){
         //*/
     }
     
-    message(&msg1);
+    //message(&msg1);
     //printf("<style>span{ width: 20px; height: 20px; margin: 0px; padding: 0px; display: inline-block; }\ndiv{font-size: 0; margin-bottom: 3px;}</style>\n\n");
 
     /*
     for(i = 0; i < 10; i++){
         //stack_length(effects);
-        /*
+        /
         msg1.uid = i + 'a';
         msg1.cmd = i % 3;
         (*msg1.data)++;

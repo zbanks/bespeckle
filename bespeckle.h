@@ -44,7 +44,7 @@
 
 // Commands
 #define FLAG_CMD     0x80
-#define FLAG_CMD_MSG 0xC0 // This gives 6 bits for additional msg parameters
+#define FLAG_CMD_MSG 0x40 // This gives 6 bits for additional msg parameters
 
 #define CMD_TICK     0x80
 #define CMD_MSG      0x81
@@ -108,10 +108,11 @@ rgb_t mix_rgb(rgba_t, rgb_t);
 
 // Structure of incomming CAN packets
 // sizeof(canpacket_t) == 8
+#define CAN_DATA_SIZE 6
 typedef struct {
 	uint8_t cmd;
 	uint8_t uid;
-	uint8_t data[6];
+	uint8_t data[CAN_DATA_SIZE];
 } canpacket_t;
 
 void message(canpacket_t*);
