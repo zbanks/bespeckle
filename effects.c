@@ -40,16 +40,17 @@ typedef struct edata_rgba1_char4 {
 
 // setup - Treat the data as an HSVA value, convert it to RGBA, and store it in the effect data
 void _setup_one_color(Effect* eff, canpacket_t* data){
-
     *(rgba_t*) eff->data = hsva_to_rgba(*(hsva_t*) (data->data));
 }
 
-// setup - Copy the bytes from the packet into the effect data. Checks size!
+// setup - Copy the bytes from the packet into the effect data. Checks size! Zeros everything else
 void _setup_copy(Effect* eff, canpacket_t* data){
     if(eff->table->size < sizeof(data->data)){
         memcpy(eff->data, data->data, sizeof(data->data));
     }else{
         memcpy(eff->data, data->data, sizeof(data->data));
+        // Set remaining bits to 0 since the uC won't do that for us
+        memset(eff->data + sizeof(data->data), 0x00, eff->table->size - sizeof(data->data));
     }
 }
 
@@ -110,9 +111,40 @@ bool_t _tick_flash(Effect* eff, fractick_t ft){
     return CONTINUE;
 }
 
+// tick - fade in. xs[1] controls rate; xs[0] is state after each beat; x[2] is the value
+bool_t _tick_fadein(Effect* eff, fractick_t ft){
+    edata_rgba1_char4 *edata = eff->data;
+    uint8_t last_val = edata->xs[0];
+    uint8_t val;
+    // Approximate as 255 ticks/beat
+    if(last_val != 0xff){
+        if(ft == 0){
+            edata->xs[0] += 1 << (edata->xs[1] & 0x7);
+        }
+        val = edata->xs[0] + ft >> (edata->xs[1] & 0x7);
+
+        if(val < last_val || edata->xs[0] < last_val){
+            // Overflow; stop the fade 
+            edata->xs[0] = 0xff;
+            edata->xs[2] = 0xff;
+        }else{
+            edata->xs[2] = val;
+        }
+    }
+    return CONTINUE;
+}
+
 // pixel - solid color across the strip: the first bytes of effect data
 rgba_t _pixel_solid(Effect* eff, position_t pos){
     return *((rgba_t*) eff->data);
+}
+
+// pixel - solid color across the strip: the first bytes of effect data; alpha controlled by xs[2]
+rgba_t _pixel_solid_alpha2(Effect* eff, position_t pos){
+    edata_rgba1_char4 *edata = (edata_rgba1_char4*)eff->data;
+    rgba_t out = edata->cs[0];
+    out.a = ((int) (out.a * edata->xs[2])) >> 8;
+    return out;
 }
 
 // pixel - similar to _pixel_solid, but with inverted colors every 3 pixels
@@ -235,6 +267,16 @@ bool_t _msg_store_char4(Effect* eff, canpacket_t* data){
     return CONTINUE;
 }
 
+// msg - copy data bytes over the effect data 
+bool_t _msg_copy(Effect* eff, canpacket_t* data){
+    if(eff->table->size < sizeof(data->data)){
+        memcpy(eff->data, data->data, sizeof(data->data));
+    }else{
+        memcpy(eff->data, data->data, sizeof(data->data));
+    }
+    return CONTINUE;
+}
+
 /* End Effect Functions */
 
 /* Effect Table containing all the possible effects & their virtual functions
@@ -272,9 +314,10 @@ EffectTable const effect_table[NUM_EFFECTS] = {
 	//dashed line ltr
 	
 	//give all signal for colorchange, speedchange
-    // Solid color (RGBA)
-    {0x10, sizeof(rgba_t),               _setup_copy, _tick_nothing,   _pixel_solid,   _msg_stop},
-    // Flash solid                   
+    // Solid color; RGBA; msg changes color
+    {0x10, sizeof(rgba_t),               _setup_copy, _tick_nothing,   _pixel_solid,   _msg_copy},
+    // Fade in; RGBA; msg changes color; data[5] is 'rate'
+    {0x12, sizeof(edata_rgba1_char4),    _setup_copy, _tick_fadein,    _pixel_solid_alpha2,   _msg_copy},
 
 };
 

@@ -186,7 +186,7 @@ Effect* msg_all(Effect* eff, canpacket_t* data){
 }
 
 void pop_effect(Effect** stack, uint8_t uid){
-    Effect * _stack;
+    Effect * _stack = *stack;
     Effect * last_stack = NULL;
     for(; _stack; last_stack = _stack, _stack = _stack->next){
         if(_stack->uid == uid){
