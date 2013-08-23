@@ -44,9 +44,13 @@ void _setup_one_color(Effect* eff, canpacket_t* data){
     *(rgba_t*) eff->data = hsva_to_rgba(*(hsva_t*) (data->data));
 }
 
-// setup - Copy the 6 bytes from the packet into the effect data
+// setup - Copy the bytes from the packet into the effect data. Checks size!
 void _setup_copy(Effect* eff, canpacket_t* data){
-    memcpy(eff->data, data->data, 6);
+    if(eff->table->size < sizeof(data->data)){
+        memcpy(eff->data, data->data, sizeof(data->data));
+    }else{
+        memcpy(eff->data, data->data, sizeof(data->data));
+    }
 }
 
 // tick - do nothing, never stop.
@@ -268,5 +272,9 @@ EffectTable const effect_table[NUM_EFFECTS] = {
 	//dashed line ltr
 	
 	//give all signal for colorchange, speedchange
+    // Solid color (RGBA)
+    {0x10, sizeof(rgba_t),               _setup_copy, _tick_nothing,   _pixel_solid,   _msg_stop},
+    // Flash solid                   
+
 };
 
