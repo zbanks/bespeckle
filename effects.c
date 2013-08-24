@@ -113,7 +113,7 @@ bool_t _tick_flash(Effect* eff, fractick_t ft){
 
 // tick - fade in. xs[1] controls rate; xs[0] is state after each beat; x[2] is the value
 bool_t _tick_fadein(Effect* eff, fractick_t ft){
-    edata_rgba1_char4 *edata = eff->data;
+    edata_rgba1_char4 *edata = (edata_rgba1_char4*)eff->data;
     uint8_t last_val = edata->xs[0];
     int val;
     // Approximate as 255 ticks/beat
@@ -181,7 +181,7 @@ rgba_t _pixel_chase(Effect* eff, position_t pos){
 // pixel - 
 rgba_t _pixel_ltr(Effect* eff, position_t pos){
     const static rgba_t clear = {0,0,0,0};
-    edata_rgba1_char4 *edata = eff->data;
+    edata_rgba1_char4 *edata = (edata_rgba1_char4*)eff->data;
     rgba_t color = edata->cs[0];
 
     if(pos < edata->xs[0]){
@@ -193,7 +193,7 @@ rgba_t _pixel_ltr(Effect* eff, position_t pos){
 // pixel - 
 rgba_t _pixel_rtl(Effect* eff, position_t pos){
     const static rgba_t clear = {0,0,0,0};
-    edata_rgba1_char4 *edata = eff->data;
+    edata_rgba1_char4 *edata = (edata_rgba1_char4*)eff->data;
     rgba_t color = edata->cs[0];
 
     if(STRIP_LENGTH - pos < edata->xs[0]){
@@ -204,7 +204,7 @@ rgba_t _pixel_rtl(Effect* eff, position_t pos){
 
 rgba_t _pixel_spr(Effect* eff, position_t pos){
     const static rgba_t clear = {0,0,0,0};
-    edata_rgba1_char4 *edata = eff->data;
+    edata_rgba1_char4 *edata = (edata_rgba1_char4*)eff->data;
     rgba_t color = edata->cs[0];
 
     if(HALF_LENGTH- edata->xs[0]< pos && pos < HALF_LENGTH + edata->xs[0]){
@@ -215,7 +215,7 @@ rgba_t _pixel_spr(Effect* eff, position_t pos){
 
 rgba_t _pixel_shr(Effect* eff, position_t pos){
     const static rgba_t clear = {0,0,0,0};
-    edata_rgba1_char4 *edata = eff->data;
+    edata_rgba1_char4 *edata = (edata_rgba1_char4*)eff->data;
     rgba_t color = edata->cs[0];
 
     if(HALF_LENGTH - edata->xs[0] < pos || pos > HALF_LENGTH + edata->xs[0]){
