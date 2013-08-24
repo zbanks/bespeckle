@@ -2,7 +2,13 @@
 #include "string.h"
 
 // Number of effects 
-#define NUM_EFFECTS  12
+#define NUM_EFFECTS  15
+
+#ifndef STRIP_LENGTH
+// Length of LED strip
+// sizeof(position_t) > STRIP_LENGTH
+#define STRIP_LENGTH 25
+#endif
 
 /* Structs used to store data for effects
  * Useful when you need to store more than a single value, and don't want to explicity code
@@ -14,9 +20,15 @@ typedef struct edata_char4 {
 } edata_char4;
 
 typedef struct edata_rgba1_char4 {
-    rgba_t cs[1]; 
+    rgba_t cs[1];
     uint8_t xs[4];
 } edata_rgba1_char4;
+
+typedef struct edata_rgba1_char4_int2 {
+    rgba_t cs[1];
+    uint8_t xs[4];
+    uint32_t ys[2];
+} edata_rgba1_char4_int2;
 
 /* Effect functions
  *
@@ -91,7 +103,7 @@ bool_t _tick_inc_chase(Effect* eff, fractick_t ft){
 }
 
 bool_t _tick_inc_spr(Effect* eff, fractick_t ft){
-    edata_rgba1_char4 *edata = eff->data;
+    edata_rgba1_char4 *edata = (edata_rgba1_char4 *) eff->data;
     if(ft == 0){
         if(edata->xs[0] >= STRIP_LENGTH){
             edata->xs[0] = 0;
@@ -135,6 +147,57 @@ bool_t _tick_fadein(Effect* eff, fractick_t ft){
     return CONTINUE;
 }
 
+// tick - pulse. ys[0] is the state used by _pixel_pulse, ys[1] is the state since the last full beat. 
+//        xs[1] is the rate, xs[2] is the alpha for pixels where the pulse is
+bool_t _tick_pulse(Effect* eff, fractick_t ft){
+    edata_rgba1_char4_int2 *edata = (edata_rgba1_char4_int2 *) eff->data;
+    uint8_t rate = 1 << (edata->xs[1] & 0x7);
+    if(ft == 0){
+        if(edata->xs[1] & 0x8){
+            edata->ys[1] <<= (0xff / (STRIP_LENGTH * rate));
+        }else{
+            edata->ys[1] >>= (0xff / (STRIP_LENGTH * rate));
+        }
+        edata->ys[0] = edata->ys[1];
+    }else{
+        if(edata->xs[1] & 0x8){
+            edata->ys[0] = edata->ys[1] << (rate * ft / STRIP_LENGTH);
+        }else{
+            edata->ys[0] = edata->ys[1] >> (1 * ft / (STRIP_LENGTH * rate));
+        }
+        edata->xs[2] = (((uint32_t) edata->cs[0].a * ((rate * ft) % STRIP_LENGTH)) / STRIP_LENGTH);
+        edata->xs[3] = edata->cs[0].a - edata->xs[2];
+    }
+    return CONTINUE;
+}
+
+bool_t _tick_fadeacross(Effect* eff, fractick_t ft){
+    edata_rgba1_char4_int2 *edata = (edata_rgba1_char4_int2 *) eff->data;
+    uint8_t rate = 1 << (edata->xs[1] & 0x7);
+    uint8_t l = (0xff / (STRIP_LENGTH * rate));
+    if(ft == 0){
+        if(edata->xs[1] & 0x8){
+            for(; l; l--){
+                edata->ys[1] = edata->ys[1] | (edata->ys[1] << 1);
+            }
+        }else{
+            for(; l; l--){
+                edata->ys[1] = edata->ys[1] | (edata->ys[1] >> 1);
+            }
+        }
+        edata->ys[0] = edata->ys[1];
+    }else{
+        if(edata->xs[1] & 0x8){
+            edata->ys[0] = edata->ys[1] << (rate * ft / STRIP_LENGTH);
+        }else{
+            edata->ys[0] = edata->ys[1] >> (1 * ft / (STRIP_LENGTH * rate));
+        }
+        edata->xs[2] = (((uint32_t) edata->cs[0].a * ((rate * ft) % STRIP_LENGTH)) / STRIP_LENGTH);
+        edata->xs[3] = edata->cs[0].a - edata->xs[2];
+    }
+    return CONTINUE;
+}
+
 // pixel - solid color across the strip: the first bytes of effect data
 rgba_t _pixel_solid(Effect* eff, position_t pos){
     return *((rgba_t*) eff->data);
@@ -145,6 +208,10 @@ rgba_t _pixel_solid_alpha2(Effect* eff, position_t pos){
     edata_rgba1_char4 *edata = (edata_rgba1_char4*)eff->data;
     rgba_t out = edata->cs[0];
     out.a = ((int) (out.a * edata->xs[2])) >> 8;
+    if(edata->xs[1] & 0x8){
+        // Fade in opposite direction
+        out.a = 0xff - out.a;
+    }
     return out;
 }
 
@@ -246,6 +313,38 @@ rgba_t _pixel_vu(Effect* eff, position_t pos){
     }
 }
 
+rgba_t _pixel_pulse(Effect* eff, position_t pos){
+    const static rgba_t clear = {0,0,0,0};
+    edata_rgba1_char4_int2 *edata = (edata_rgba1_char4_int2*) eff->data;
+    rgba_t color = edata->cs[0];
+
+    if(edata->xs[1] & 0x8){
+        if(edata->ys[0] & (1 << pos)){
+            if(edata->ys[0] & ((1 << pos) >> 1)){
+                return color;
+            }
+            color.a = edata->xs[3];
+            return color;
+        }
+        if(edata->ys[0] & ((1 << pos) << 1)){
+            color.a = edata->xs[2];
+            return color;
+        }
+    }else{
+        if(edata->ys[0] & (1 << pos)){
+            if(edata->ys[0] & ((1 << pos) << 1)){
+                return color;
+            }
+            color.a = edata->xs[3];
+            return color;
+        }
+        if(edata->ys[0] & ((1 << pos) << 1)){
+            color.a = edata->xs[2];
+            return color;
+        }
+    }
+    return clear;
+}
 
 
 // msg - do nothing, continue
@@ -276,6 +375,28 @@ bool_t _msg_copy(Effect* eff, canpacket_t* data){
         memcpy(eff->data, data->data, CAN_DATA_SIZE);
         // Set remaining bits to 0 since the uC won't do that for us
         memset(eff->data + CAN_DATA_SIZE, 0x00, eff->table->size - CAN_DATA_SIZE);
+    }
+    return CONTINUE;
+}
+
+bool_t _msg_pulse(Effect* eff, canpacket_t* data){
+    edata_rgba1_char4_int2 *edata = (edata_rgba1_char4_int2*) eff->data;
+    uint32_t mask = (1 << (data->data[0] + 1)) - 1;
+
+    /*
+    // Reverse
+    #ifdef NOHARDWARE
+        output = ((input * 0x80200802ULL) & 0x0884422110ULL) * 0x0101010101ULL >> 32;
+    #else
+        __asm__("rbit %0, %1\n" : "=r"(output) : "r"(input));
+    #endif
+    */
+    
+    
+    if(edata->xs[1] & 0x8){
+        edata->ys[1] |= mask;
+    }else{
+        edata->ys[1] |= mask << (STRIP_LENGTH - data->data[0]);
     }
     return CONTINUE;
 }
@@ -319,8 +440,13 @@ EffectTable const effect_table[NUM_EFFECTS] = {
 	//give all signal for colorchange, speedchange
     // Solid color; RGBA; msg changes color
     {0x10, sizeof(rgba_t),               _setup_copy, _tick_nothing,   _pixel_solid,   _msg_copy},
-    // Fade in; RGBA; msg changes color; data[5] is start, data[6] is 'rate'
+    // Fade in/out; RGBA; msg changes color; data[5] is start, data[6] is 'rate' & direction
     {0x12, sizeof(edata_rgba1_char4),    _setup_copy, _tick_fadein,    _pixel_solid_alpha2,   _msg_copy},
+    // Pulse; RGBA; msg sends pulse; data[5] is nothing, data[6] is 'rate' & direction
+    {0x14, sizeof(edata_rgba1_char4_int2), _setup_copy, _tick_pulse,    _pixel_pulse,   _msg_pulse},
+    // Fade across; RGBA; msg changes color & sends pulse; data[5] is nothing, data[6] is 'rate' & direction
+    // Not efficiently implemented, but lets us reuse a lot of code
+    {0x16, sizeof(edata_rgba1_char4_int2), _setup_copy, _tick_fadeacross,    _pixel_pulse,   _msg_pulse},
 
 };
 

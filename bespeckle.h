@@ -5,9 +5,7 @@
 #ifndef NOHARDWARE
 #include "led_strip_driver.h"
 #else
-// Length of LED strip
-// sizeof(position_t) > STRIP_LENGTH
-#define STRIP_LENGTH 25
+// Defined STRIP_LENGTH in effects.c
 
 #endif
 
