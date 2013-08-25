@@ -77,6 +77,7 @@ bool_t _tick_increment(Effect* eff, fractick_t ft){
     if(ft == 0){
         edata->xs[0]++;
     }
+    edata->xs[3] = ft;
     return CONTINUE;
 }
 
@@ -326,7 +327,7 @@ rgba_t _pixel_shr(Effect* eff, position_t pos){
 rgba_t _pixel_rainbow(Effect* eff, position_t pos){
     static hsva_t color = {0x00, 0xff, 0xff, 0xff};
     edata_char4 *edata = (edata_char4*)eff->data;
-    color.h = (edata->xs[0] * edata->xs[1] + pos * edata->xs[2]) & 0xff;
+    color.h = (edata->xs[0] * edata->xs[1] + (edata->xs[3] / edata->xs[1]) + pos * edata->xs[2]) & 0xff;
     //color.h = pos;
     return hsva_to_rgba(color);
 }
