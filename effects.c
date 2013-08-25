@@ -155,7 +155,7 @@ bool_t _tick_pulse(Effect* eff, fractick_t ft){
     uint8_t rate = 1 << (edata->xs[1] & 0x7);
     uint8_t mv;
     if(ft == 0){
-        mv = 0xff / (STRIP_LENGTH * rate);
+        mv = (0xff << 3) / (STRIP_LENGTH * rate);
         if(edata->xs[1] & 0x8){
             edata->ys[2] <<= mv;
             edata->ys[2] |= (edata->ys[3] >> (32 - mv));
@@ -170,17 +170,21 @@ bool_t _tick_pulse(Effect* eff, fractick_t ft){
         edata->xs[2] = ((uint32_t) edata->cs[0].a * (0xff % (STRIP_LENGTH * rate)) / (STRIP_LENGTH * rate));
         edata->xs[3] = edata->cs[0].a - edata->xs[2];
     }else{
-        mv = ft / (STRIP_LENGTH * rate);
+        mv = ((uint16_t) ft << 3) / (STRIP_LENGTH * rate);
         if(edata->xs[1] & 0x8){
             edata->ys[0] = edata->ys[2] << mv;
             edata->ys[1] = edata->ys[3] << mv;
             //XXX
-            //edata->ys[0] |= (edata->ys[3] >> (32 - mv));
+            if(mv > 0){
+                edata->ys[0] |= (edata->ys[3] >> (32 - mv));
+            }
         }else{
             edata->ys[0] = edata->ys[2] >> mv;
             edata->ys[1] = edata->ys[3] >> mv;
             // Fuck it; #yolo XXX
-            //edata->ys[1] |= (edata->ys[2] << (32 - mv));
+            if(mv > 0){
+                edata->ys[1] |= (edata->ys[2] << (32 - mv));
+            }
             //edata->ys[1] |= (edata->ys[2] << (31));
         }
         edata->xs[2] = ((uint32_t) edata->cs[0].a * (ft % (STRIP_LENGTH * rate)) / (STRIP_LENGTH * rate));
@@ -192,8 +196,9 @@ bool_t _tick_pulse(Effect* eff, fractick_t ft){
 bool_t _tick_fadeacross(Effect* eff, fractick_t ft){
     edata_rgba1_char4_int4 *edata = (edata_rgba1_char4_int4 *) eff->data;
     uint8_t rate = 1 << (edata->xs[1] & 0x7);
-    uint8_t l = (0xff / (STRIP_LENGTH * rate));
+    uint8_t l;
     if(ft == 0){
+        l = ((0xff << 3) / (STRIP_LENGTH * rate));
         if(edata->xs[1] & 0x8){
             for(; l; l--){
                 edata->ys[2] = edata->ys[2] | (edata->ys[2] << 1) | (edata->ys[3] >> 31);
@@ -208,7 +213,7 @@ bool_t _tick_fadeacross(Effect* eff, fractick_t ft){
         edata->ys[0] = edata->ys[2];
         edata->ys[1] = edata->ys[3];
     }else{
-        l = ft / (STRIP_LENGTH * rate);
+        l = ((uint16_t) ft << 3) / (STRIP_LENGTH * rate);
         edata->ys[0] = edata->ys[2];
         edata->ys[1] = edata->ys[3];
         if(edata->xs[1] & 0x8){

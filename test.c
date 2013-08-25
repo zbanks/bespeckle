@@ -53,7 +53,7 @@ int main(){
         ((hsva_t *) msg1.data)->v = 0xff;
         ((hsva_t *) msg1.data)->a = 0xff;
         */
-#define FT 4
+#define FT 10
         msg_tick.uid = (i % FT) * (240 / FT);
         message(&msg_tick);
         print_strip_html();
