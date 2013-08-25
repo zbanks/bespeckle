@@ -188,7 +188,7 @@ Effect* msg_all(Effect* eff, canpacket_t* data){
 void pop_effect(Effect** stack, uint8_t uid){
     Effect * _stack = *stack;
     Effect * last_stack = NULL;
-    for(; _stack; last_stack = _stack, _stack = _stack->next){
+    for(; _stack != NULL; last_stack = _stack, _stack = _stack->next){
         if(_stack->uid == uid){
             if(last_stack == NULL){
                 *stack = _stack->next;
@@ -249,6 +249,7 @@ void message(canpacket_t* data){
                 break;
                 case CMD_STOP:
                     pop_effect(&effects, data->uid);
+                break;
                 case CMD_RESET:
                 case CMD_REBOOT:
                     // Reset strip, remove all effects

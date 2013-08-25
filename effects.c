@@ -187,10 +187,16 @@ bool_t _tick_fadeacross(Effect* eff, fractick_t ft){
         }
         edata->ys[0] = edata->ys[1];
     }else{
+        l = ft / (STRIP_LENGTH * rate);
+        edata->ys[0] = edata->ys[1];
         if(edata->xs[1] & 0x8){
-            edata->ys[0] = edata->ys[1] << (rate * ft / STRIP_LENGTH);
+            for(; l; l--){
+                edata->ys[0] = edata->ys[0] | (edata->ys[0] << 1);
+            }
         }else{
-            edata->ys[0] = edata->ys[1] >> (1 * ft / (STRIP_LENGTH * rate));
+            for(; l; l--){
+                edata->ys[0] = edata->ys[0] | (edata->ys[0] >> 1);
+            }
         }
         edata->xs[2] = (((uint32_t) edata->cs[0].a * ((rate * ft) % STRIP_LENGTH)) / STRIP_LENGTH);
         edata->xs[3] = edata->cs[0].a - edata->xs[2];

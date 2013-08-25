@@ -39,7 +39,7 @@ void print_strip_html(){
 int main(){ 
     int i;
     canpacket_t msg1 = {0x03, 'a', {0x80, 20, 23, 0x00, 0x00, 0x00}};
-    canpacket_t msg2 = {0x16 , 'b', {0x00, 0x00, 0x00, 0xff, 0x00, 0x03}};
+    canpacket_t msg2 = {0x16 , 'b', {0x00, 0x00, 0x00, 0xff, 0x00, 0x01}};
     canpacket_t msg_tick = {CMD_TICK, 0, {0, 0, 0, 0, 0, 0}};
     //hsva_t color = {0, 255, 255, 0};
     //printf("<style>div{ width: 500px; height: 10px; margin: 0; }</style>\n\n");
