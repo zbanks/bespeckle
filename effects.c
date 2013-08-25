@@ -161,11 +161,11 @@ bool_t _tick_pulse(Effect* eff, fractick_t ft){
         edata->ys[0] = edata->ys[1];
     }else{
         if(edata->xs[1] & 0x8){
-            edata->ys[0] = edata->ys[1] << (rate * ft / STRIP_LENGTH);
+            edata->ys[0] = edata->ys[1] << (1 * ft / (STRIP_LENGTH * rate));
         }else{
             edata->ys[0] = edata->ys[1] >> (1 * ft / (STRIP_LENGTH * rate));
         }
-        edata->xs[2] = (((uint32_t) edata->cs[0].a * ((rate * ft) % STRIP_LENGTH)) / STRIP_LENGTH);
+        edata->xs[2] = ((uint32_t) edata->cs[0].a * (ft % (STRIP_LENGTH * rate)) / (STRIP_LENGTH * rate));
         edata->xs[3] = edata->cs[0].a - edata->xs[2];
     }
     return CONTINUE;
@@ -326,26 +326,26 @@ rgba_t _pixel_pulse(Effect* eff, position_t pos){
 
     if(edata->xs[1] & 0x8){
         if(edata->ys[0] & (1 << pos)){
-            if(pos == 0 || (edata->ys[0] & ((1 << pos) >> 1))){
-                return color;
-            }
-            color.a = edata->xs[3];
+            return color;
+        }
+        if((edata->ys[0] & ((1 << pos) >> 1))){
+            color.a = edata->xs[2];
             return color;
         }
         if(edata->ys[0] & ((1 << pos) << 1)){
-            color.a = edata->xs[2];
+            color.a = edata->xs[3];
             return color;
         }
     }else{
         if(edata->ys[0] & (1 << pos)){
-            if(pos == (STRIP_LENGTH - 1) || edata->ys[0] & ((1 << pos) << 1)){
-                return color;
-            }
-            color.a = edata->xs[3];
             return color;
         }
-        if(edata->ys[0] & ((1 << pos) << 1)){
+        if((edata->ys[0] & ((1 << pos) << 1))){
             color.a = edata->xs[2];
+            return color;
+        }
+        if(edata->ys[0] & ((1 << pos) >> 1)){
+            color.a = edata->xs[3];
             return color;
         }
     }
