@@ -326,7 +326,7 @@ rgba_t _pixel_pulse(Effect* eff, position_t pos){
 
     if(edata->xs[1] & 0x8){
         if(edata->ys[0] & (1 << pos)){
-            if(edata->ys[0] & ((1 << pos) >> 1)){
+            if(pos == 0 || (edata->ys[0] & ((1 << pos) >> 1))){
                 return color;
             }
             color.a = edata->xs[3];
@@ -338,7 +338,7 @@ rgba_t _pixel_pulse(Effect* eff, position_t pos){
         }
     }else{
         if(edata->ys[0] & (1 << pos)){
-            if(edata->ys[0] & ((1 << pos) << 1)){
+            if(pos == (STRIP_LENGTH - 1) || edata->ys[0] & ((1 << pos) << 1)){
                 return color;
             }
             color.a = edata->xs[3];
@@ -402,7 +402,7 @@ bool_t _msg_pulse(Effect* eff, canpacket_t* data){
     if(edata->xs[1] & 0x8){
         edata->ys[1] |= mask;
     }else{
-        edata->ys[1] |= mask << (STRIP_LENGTH - data->data[0]);
+        edata->ys[1] |= mask << (STRIP_LENGTH - data->data[0] - 1);
     }
     return CONTINUE;
 }
