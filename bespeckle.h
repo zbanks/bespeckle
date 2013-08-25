@@ -32,7 +32,7 @@
 
 
 //midway point
-#define HALF_LENGTH 25
+#define HALF_LENGTH (STRIP_LENGTH/2)
 
 // Default color with no effects (black)
 #define RGB_EMPTY    0x8000
