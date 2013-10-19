@@ -2,7 +2,7 @@
 #include "string.h"
 
 // Number of effects 
-#define NUM_EFFECTS  15
+#define NUM_EFFECTS  16
 
 #ifndef STRIP_LENGTH
 // Length of LED strip
@@ -234,7 +234,7 @@ bool_t _tick_fadeacross(Effect* eff, fractick_t ft){
 }
 
 // tick - strobes
-bool_t _tick_fadeacross(Effect* eff, fractick_t ft){
+bool_t _tick_strobe(Effect* eff, fractick_t ft){
     edata_rgba1_char4 *edata = (edata_rgba1_char4 *) eff->data;
     edata->xs[2] = ft;
     if(ft == 0){
@@ -398,7 +398,7 @@ rgba_t _pixel_pulse(Effect* eff, position_t pos){
 rgba_t _pixel_strobe(Effect* eff, position_t pos){
     const static rgba_t clear = {0,0,0,0};
     edata_rgba1_char4 *edata = (edata_rgba1_char4*)eff->data;
-    if(edata->xs[3] % edata->xs[1] == 0 && (edata->xs[0] % edata->xs[2]) < 10){
+    if(edata->xs[3] % edata->xs[1] == 0 && (edata->xs[0] % edata->xs[2]) < 5){
         return edata->cs[0];
     }
     return clear;
@@ -459,7 +459,7 @@ bool_t _msg_pulse(Effect* eff, canpacket_t* data){
 }
 
 bool_t _msg_strobe(Effect* eff, canpacket_t* data){
-    edata_rgba1_char4 *edata = (edata_rgba1_char4 eff->data;
+    edata_rgba1_char4 *edata = (edata_rgba1_char4 *) eff->data;
 
     switch(data->cmd & 0x7){
         case 0:
@@ -485,7 +485,7 @@ bool_t _msg_strobe(Effect* eff, canpacket_t* data){
  *  id  size                          setup             tick             pixel           msg
  */
 EffectTable const effect_table[NUM_EFFECTS] = {
-    /_/ Solid color 
+    // Solid color 
     {0, sizeof(rgba_t),               _setup_one_color, _tick_nothing,   _pixel_solid,   _msg_stop},
     // Flash solid                   
     {1, sizeof(rgba_t),               _setup_one_color, _tick_flash,     _pixel_solid,   _msg_stop},
