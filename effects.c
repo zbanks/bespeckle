@@ -395,7 +395,7 @@ rgba_t _pixel_pulse(Effect* eff, position_t pos){
 }
 
 // pixel - strobe solid color across the strip
-rgba_t _pixel_solid(Effect* eff, position_t pos){
+rgba_t _pixel_strobe(Effect* eff, position_t pos){
     const static rgba_t clear = {0,0,0,0};
     edata_rgba1_char4 *edata = (edata_rgba1_char4*)eff->data;
     if(edata->xs[3] % edata->xs[1] == 0 && (edata->xs[0] % edata->xs[2]) < 10){
