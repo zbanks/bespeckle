@@ -40,7 +40,7 @@
 // Default color with no effects (black) for RGBA
 #define RGBA_EMPTY   (RGBA){0, 0, 0, 0xFF}
 
-// Commands
+// CommandsA
 #define FLAG_CMD     0x80
 #define FLAG_CMD_MSG 0x40 // This gives 6 bits for additional msg parameters
 
@@ -105,6 +105,7 @@ rgba_t hsva_to_rgba(hsva_t);
 // Mix/composite color values according to alpha channel
 rgba_t mix_rgba(rgba_t, rgba_t);
 rgb_t mix_rgb(rgba_t, rgb_t);
+rgb_t filter_rgb(rgb_t, uint8_t, uint8_t, uint8_t, uint8_t);
 
 
 // Structure of incomming CAN packets

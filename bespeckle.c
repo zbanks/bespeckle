@@ -47,6 +47,16 @@ rgb_t mix_rgb(rgba_t top, rgb_t bot){
     return out;
 }
 
+rgb_t filter_rgb(rgb_t color, uint8_t rf, uint8_t gf, uint8_t bf, uint8_t kf){
+    // Filter R, G, B, (all) channels for color correction, etc
+    // Probably should be optimized
+    rgb_t out = RGB_EMPTY;
+    out |= (((color & RGBA_R_MASK) * rf * kf) / 0xfe01) & RGBA_R_MASK;
+    out |= (((color & RGBA_G_MASK) * gf * kf) / 0xfe01) & RGBA_G_MASK;
+    out |= (((color & RGBA_B_MASK) * bf * kf) / 0xfe01) & RGBA_B_MASK;
+    return out;
+}
+
 rgba_t hsva_to_rgba(hsva_t in){
     // Convert HSVA to RGBA.  Hue from 0-254, sat, val, & alpha are 5 bit (0-31)
     // TODO: Optimize for the values we actually have
@@ -150,7 +160,8 @@ void compose_all(Effect* eff, rgb_t* strip){
         for(eff = eff_head; eff; eff = eff->next){
             *strip = mix_rgb(eff->table->pixel(eff, i), *strip);
         }
-        *strip = mix_rgb(parameters, *strip);
+        // Apply color correction
+        *strip = filter_rgb(*strip, parameters[0], parameters[1], parameters[2], parameters[3]);
     }
 }
 
@@ -268,7 +279,7 @@ void message(canpacket_t* data){
                     }
                 break;
                 case CMD_PARAM:
-                    if(data->uid < PARAM_lEN){
+                    if(data->uid < PARAM_LEN){
                         parameters[data->uid] = data->data[0];
                     }
                 break;
