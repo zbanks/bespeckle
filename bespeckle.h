@@ -50,6 +50,7 @@
 
 #define CMD_RESET    0x83
 #define CMD_REBOOT   0x84 // TODO
+#define CMD_PARAM    0x85
 
 #define CONTINUE     0
 #define STOP         1
@@ -59,6 +60,8 @@
 
 //#define NULL         0
 
+// Reserve PARAM_LEN bytes for global 'parameters'
+#define PARAM_LEN    4
 
 
 // Packed RGB value, as sent to the LED strip. 1BBB BBRR RRRG GGGG
@@ -138,6 +141,7 @@ typedef struct EffectTable {
 	rgba_t (* pixel)(struct Effect *, position_t);
 	bool_t (* msg)(struct Effect *, canpacket_t*);
 } EffectTable;
+
 
 // Calls `tick` on every Effect in the linked list;
 // Removes Effects from the list that have nonzero return values when fractick == 0

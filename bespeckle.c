@@ -6,6 +6,9 @@
 // Effects stack (initially empty)
 Effect* effects = NULL;
 
+// Parameters
+uint8_t parameters[PARAM_LEN] = {0xff,0xff,0xff,0xff};
+
 /* Begin color functions */
 rgb_t pack_rgba(rgba_t in){
     return ((in.r >> 3 << RGBA_R_SHIFT) & RGBA_R_MASK) | 
@@ -147,6 +150,7 @@ void compose_all(Effect* eff, rgb_t* strip){
         for(eff = eff_head; eff; eff = eff->next){
             *strip = mix_rgb(eff->table->pixel(eff, i), *strip);
         }
+        *strip = mix_rgb(parameters, *strip);
     }
 }
 
@@ -257,6 +261,15 @@ void message(canpacket_t* data){
                         e = effects;
                         effects = e->next;
                         free_effect(e);
+                    }
+                    int i;
+                    for(i = 0; i < PARAM_LEN; i++){
+                        parameters[i] = 0xff;
+                    }
+                break;
+                case CMD_PARAM:
+                    if(data->uid < PARAM_lEN){
+                        parameters[data->uid] = data->data[0];
                     }
                 break;
                 default:
