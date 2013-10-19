@@ -233,6 +233,16 @@ bool_t _tick_fadeacross(Effect* eff, fractick_t ft){
     return CONTINUE;
 }
 
+// tick - strobes
+bool_t _tick_fadeacross(Effect* eff, fractick_t ft){
+    edata_rgba1_char4 *edata = (edata_rgba1_char4 *) eff->data;
+    edata->xs[2] = ft;
+    if(ft == 0){
+        edata->xs[3]++;
+    }
+    return CONTINUE;
+}
+
 // pixel - solid color across the strip: the first bytes of effect data
 rgba_t _pixel_solid(Effect* eff, position_t pos){
     return *((rgba_t*) eff->data);
@@ -384,6 +394,15 @@ rgba_t _pixel_pulse(Effect* eff, position_t pos){
     return clear;
 }
 
+// pixel - strobe solid color across the strip
+rgba_t _pixel_solid(Effect* eff, position_t pos){
+    const static rgba_t clear = {0,0,0,0};
+    edata_rgba1_char4 *edata = (edata_rgba1_char4*)eff->data;
+    if(edata->xs[3] % edata->xs[1] == 0 && (edata->xs[0] % edata->xs[2]) < 10){
+        return edata->cs[0];
+    }
+    return clear;
+}
 
 // msg - do nothing, continue
 bool_t _msg_nothing(Effect* eff, canpacket_t* data){
@@ -439,6 +458,23 @@ bool_t _msg_pulse(Effect* eff, canpacket_t* data){
     return CONTINUE;
 }
 
+bool_t _msg_strobe(Effect* eff, canpacket_t* data){
+    edata_rgba1_char4 *edata = (edata_rgba1_char4 eff->data;
+
+    switch(data->cmd & 0x7){
+        case 0:
+            // set color
+            memcpy(edata->cs, data->data, 4);
+        break;
+        case 1:
+            // set params
+            memcpy(edata->xs, data->data, 2);
+        break;
+        default:
+        break;
+    }
+}
+
 /* End Effect Functions */
 
 /* Effect Table containing all the possible effects & their virtual functions
@@ -449,7 +485,7 @@ bool_t _msg_pulse(Effect* eff, canpacket_t* data){
  *  id  size                          setup             tick             pixel           msg
  */
 EffectTable const effect_table[NUM_EFFECTS] = {
-    // Solid color 
+    /_/ Solid color 
     {0, sizeof(rgba_t),               _setup_one_color, _tick_nothing,   _pixel_solid,   _msg_stop},
     // Flash solid                   
     {1, sizeof(rgba_t),               _setup_one_color, _tick_flash,     _pixel_solid,   _msg_stop},
@@ -486,5 +522,7 @@ EffectTable const effect_table[NUM_EFFECTS] = {
     // Not efficiently implemented, but lets us reuse a lot of code
     {0x16, sizeof(edata_rgba1_char4_int4), _setup_copy, _tick_fadeacross,    _pixel_pulse,   _msg_pulse},
 
+    // Strobe; RGBA; msg changes color/rate
+    {0x18, sizeof(edata_rgba1_char4), _setup_copy, _tick_strobe, _pixel_strobe, _msg_strobe},
 };
 
