@@ -304,30 +304,38 @@ bool_t _tick_timeout_scroll(Effect* eff, fractick_t ft){
     edata_rgba1_char4_time1 *edata = (edata_rgba1_char4_time1 *) eff->data;
     int32_t time_left;
     int32_t time_total;
+    int32_t t;
     //if(((uint32_t) edata->ts[0]) > ((uint32_t) clock)){
     if(!edata->xs[2]){
         // Start
         edata->ts[0].frac = clock.frac;
         edata->ts[0].tick = clock.tick;
-        time_add(&(edata->ts[0]), edata->xs[0], edata->xs[1]);
+        time_add(&(edata->ts[0]), edata->xs[0] & 0x7f, edata->xs[1]);
     }
-    if(edata->xs[3] > STRIP_LENGTH){
+    //if(edata->xs[3] > STRIP_LENGTH){
+    time_left = time_sub(edata->ts[0], clock); 
+    if(time_left < 0){
         if(eff->table->eid == 0x42){
             return STOP;
         }else{
-            edata->xs[3] = 0xff;
+            edata->xs[3] = (edata->xs[0] & 0x80) ? 0 : 0xff;
             return CONTINUE;
         }
     }
 
-    time_left = time_sub(edata->ts[0], clock); 
-    time_total = edata->xs[0] * TICK_LENGTH + edata->xs[1];
+    time_total = (edata->xs[0] & 0x7f) * TICK_LENGTH + edata->xs[1];
+    
     //DEBUG("clock: %d, %d\n", clock.tick, clock.frac);
-    DEBUG("end: %d, %d, %d, %d\n", edata->ts[0].tick, edata->ts[0].frac, edata->xs[0], edata->xs[1]);
-    DEBUG("time: %d, %d\n", time_left, time_total);
+    //DEBUG("end: %d, %d, %d, %d\n", edata->ts[0].tick, edata->ts[0].frac, edata->xs[0], edata->xs[1]);
+    //DEBUG("time: %d, %d\n", time_left, time_total);
+    if(edata->xs[0] & 0x80){
+        t = time_left;
+    }else{
+        t = time_total - time_left;
+    }
 
-    edata->xs[3] = ((time_total - time_left) * STRIP_LENGTH)  / time_total;
-    edata->xs[2] = ((((time_total - time_left) * STRIP_LENGTH) % time_total) * edata->cs[0].a) / time_total; 
+    edata->xs[3] = (t * STRIP_LENGTH)  / time_total;
+    edata->xs[2] = (((t * STRIP_LENGTH) % time_total) * edata->cs[0].a) / time_total; 
     //edata->xs[2] = edata->cs[0].a;
     
     if(edata->xs[2] < 1){
@@ -341,23 +349,30 @@ bool_t _tick_timeout_fade(Effect* eff, fractick_t ft){
     edata_rgba1_char4_time1 *edata = (edata_rgba1_char4_time1 *) eff->data;
     int32_t time_left;
     int32_t time_total;
+    int32_t t;
     //if(((uint32_t) edata->ts[0]) > ((uint32_t) clock)){
     if(!edata->xs[2]){
         // Start
         edata->ts[0].frac = clock.frac;
         edata->ts[0].tick = clock.tick;
-        time_add(&(edata->ts[0]), edata->xs[0], edata->xs[1]);
+        time_add(&(edata->ts[0]), edata->xs[0] & 0x7f, edata->xs[1]);
         edata->xs[2] = edata->cs[0].a;
     }
     time_left = time_sub(edata->ts[0], clock); 
     if(edata->xs[3] == 0xff || time_left < 0){
         edata->xs[3] = 0xff;
+        edata->cs[0].a = (edata->xs[0] & 0x80) ? 0 : edata->xs[2];
         return CONTINUE;
     }
 
-    time_total = edata->xs[0] * TICK_LENGTH + edata->xs[1];
+    time_total = (edata->xs[0] & 0x7f) * TICK_LENGTH + edata->xs[1];
+    if(edata->xs[0] & 0x80){
+        t = time_left;
+    }else{
+        t = time_total - time_left;
+    }
 
-    edata->cs[0].a = ((time_total - time_left) * edata->xs[2])  / time_total;
+    edata->cs[0].a = (t * edata->xs[2])  / time_total;
     //edata->xs[2] = ((((time_total - time_left) * STRIP_LENGTH) % time_total) * edata->cs[0].a) / time_total; 
     //edata->xs[2] = edata->cs[0].a;
     
@@ -540,18 +555,34 @@ rgba_t _pixel_er_pulse(Effect* eff, position_t pos){
     if(pos == target){
         return color;
     }
-    if(pos == (target+1)){
-        color.a = edata->xs[2];
-        return color;
-    }
     if(eff->table->eid == 0x42){
+        // Chaser
+        if(pos == (target+1)){
+            color.a = edata->xs[2];
+            return color;
+        }
         if(pos == (target-1)){
             color.a -= edata->xs[2];
             return color;
         }
     }else{
-        if(pos < target){
-            return color;
+        // Fade Across
+        if(edata->xs[0] & 0x80){
+            if(pos >= target){
+                return color;
+            }
+            if(pos == (target-1)){
+                color.a -= edata->xs[2];
+                return color;
+            }
+        }else{
+            if(pos < target){
+                return color;
+            }
+            if(pos == (target+1)){
+                color.a = edata->xs[2];
+                return color;
+            }
         }
     }
     return clear;
