@@ -1,13 +1,12 @@
 #include "bespeckle.h"
+#include "effects.h"
 #include "string.h"
 
-// Number of effects 
-#define NUM_EFFECTS  16
-
-#ifndef STRIP_LENGTH
-// Length of LED strip
-// sizeof(position_t) > STRIP_LENGTH
-#define STRIP_LENGTH 50
+#ifdef NOHARWARE
+#include <stdio.h>
+#define DEBUG(x...) fprintf(stderr, x)
+#else
+#define DEBUG(x...) 
 #endif
 
 /* Structs used to store data for effects
@@ -29,6 +28,12 @@ typedef struct edata_rgba1_char4_int4 {
     uint8_t xs[4];
     uint32_t ys[4];
 } edata_rgba1_char4_int4;
+
+typedef struct edata_rgba1_char4_time1 {
+    rgba_t cs[1];
+    uint8_t xs[4];
+    tick_t ts[1];
+} edata_rgba1_char4_time1;
 
 /* Effect functions
  *
@@ -65,6 +70,26 @@ void _setup_copy(Effect* eff, canpacket_t* data){
         memset(eff->data + CAN_DATA_SIZE, 0x00, eff->table->size - CAN_DATA_SIZE);
     }
 }
+
+// setup - Setup pulse by 
+void _setup_pulse(Effect* eff, canpacket_t* data){
+    edata_rgba1_char4_int4 *edata = (edata_rgba1_char4_int4 *) eff->data;
+    memcpy(eff->data, data->data, CAN_DATA_SIZE);
+    memset(eff->data + CAN_DATA_SIZE, 0x00, eff->table->size - CAN_DATA_SIZE);
+
+    edata->xs[0] = 1;
+
+    if(edata->xs[1] & 0x8){
+        edata->ys[3] = 0x1;
+        edata->ys[1] = 0x1;
+    }else{
+        edata->ys[2] = (0x1) << (STRIP_LENGTH - 33);
+        edata->ys[0] = (0x1) << (STRIP_LENGTH - 33);
+    }
+    //_tick_fadeacross(eff, 0);
+
+}
+    
 
 // tick - do nothing, never stop.
 bool_t _tick_nothing(Effect* eff, fractick_t ft){
@@ -168,7 +193,7 @@ bool_t _tick_pulse(Effect* eff, fractick_t ft){
         edata->ys[0] = edata->ys[2];
         edata->ys[1] = edata->ys[3];
         edata->xs[2] = ((uint32_t) edata->cs[0].a * (0xff % (STRIP_LENGTH * rate)) / (STRIP_LENGTH * rate));
-        edata->xs[3] = edata->cs[0].a - edata->xs[2];
+        //edata->xs[3] = edata->cs[0].a - edata->xs[2];
     }else{
         mv = ((uint16_t) ft << 3) / (STRIP_LENGTH * rate);
         if(edata->xs[1] & 0x8){
@@ -188,7 +213,7 @@ bool_t _tick_pulse(Effect* eff, fractick_t ft){
             //edata->ys[1] |= (edata->ys[2] << (31));
         }
         edata->xs[2] = ((uint32_t) edata->cs[0].a * (ft % (STRIP_LENGTH * rate)) / (STRIP_LENGTH * rate));
-        edata->xs[3] = edata->cs[0].a - edata->xs[2];
+        //edata->xs[3] = edata->cs[0].a - edata->xs[2];
     }
     return CONTINUE;
 }
@@ -198,7 +223,7 @@ bool_t _tick_fadeacross(Effect* eff, fractick_t ft){
     uint8_t rate = 1 << (edata->xs[1] & 0x7);
     uint8_t l;
     if(ft == 0){
-        l = ((0xff << 3) / (STRIP_LENGTH * rate));
+        l = ((240 << 3) / (STRIP_LENGTH * rate));
         if(edata->xs[1] & 0x8){
             for(; l; l--){
                 edata->ys[2] = edata->ys[2] | (edata->ys[2] << 1) | (edata->ys[3] >> 31);
@@ -242,6 +267,107 @@ bool_t _tick_strobe(Effect* eff, fractick_t ft){
     }
     return CONTINUE;
 }
+
+// tick - decrement xs[0] for each fractick
+bool_t _tick_subdecrement(Effect* eff, fractick_t ft){
+    edata_rgba1_char4 *edata = (edata_rgba1_char4 *) eff->data;
+    if(edata->xs[2] > ft){
+        edata->xs[0] = 240 - (edata->xs[2] - ft) ;
+    }else{
+        edata->xs[0] = ft - edata->xs[2] ;
+    }
+    edata->xs[2] = ft;
+    return CONTINUE;
+}
+
+// tick - die if clock > time
+bool_t _tick_timeout(Effect* eff, fractick_t ft){
+    edata_rgba1_char4_time1 *edata = (edata_rgba1_char4_time1 *) eff->data;
+    //if(((uint32_t) edata->ts[0]) > ((uint32_t) clock)){
+    if(!edata->xs[3]){
+        // Start
+        edata->ts[0].frac = clock.frac;
+        edata->ts[0].tick = clock.tick;
+        time_add(&(edata->ts[0]), edata->xs[0], edata->xs[1]);
+        edata->xs[3] = 1;
+    }else{
+        if(edata->ts[0].tick < clock.tick){
+            return STOP;
+        }else if(edata->ts[0].tick == clock.tick && edata->ts[0].frac < clock.frac){
+            return STOP;
+        }
+    }
+    return CONTINUE;
+}
+
+bool_t _tick_timeout_scroll(Effect* eff, fractick_t ft){
+    edata_rgba1_char4_time1 *edata = (edata_rgba1_char4_time1 *) eff->data;
+    int32_t time_left;
+    int32_t time_total;
+    //if(((uint32_t) edata->ts[0]) > ((uint32_t) clock)){
+    if(!edata->xs[2]){
+        // Start
+        edata->ts[0].frac = clock.frac;
+        edata->ts[0].tick = clock.tick;
+        time_add(&(edata->ts[0]), edata->xs[0], edata->xs[1]);
+    }
+    if(edata->xs[3] > STRIP_LENGTH){
+        if(eff->table->eid == 0x42){
+            return STOP;
+        }else{
+            edata->xs[3] = 0xff;
+            return CONTINUE;
+        }
+    }
+
+    time_left = time_sub(edata->ts[0], clock); 
+    time_total = edata->xs[0] * TICK_LENGTH + edata->xs[1];
+    //DEBUG("clock: %d, %d\n", clock.tick, clock.frac);
+    DEBUG("end: %d, %d, %d, %d\n", edata->ts[0].tick, edata->ts[0].frac, edata->xs[0], edata->xs[1]);
+    DEBUG("time: %d, %d\n", time_left, time_total);
+
+    edata->xs[3] = ((time_total - time_left) * STRIP_LENGTH)  / time_total;
+    edata->xs[2] = ((((time_total - time_left) * STRIP_LENGTH) % time_total) * edata->cs[0].a) / time_total; 
+    //edata->xs[2] = edata->cs[0].a;
+    
+    if(edata->xs[2] < 1){
+        edata->xs[2] = 1;
+    }
+    
+    return CONTINUE;
+}
+
+bool_t _tick_timeout_fade(Effect* eff, fractick_t ft){
+    edata_rgba1_char4_time1 *edata = (edata_rgba1_char4_time1 *) eff->data;
+    int32_t time_left;
+    int32_t time_total;
+    //if(((uint32_t) edata->ts[0]) > ((uint32_t) clock)){
+    if(!edata->xs[2]){
+        // Start
+        edata->ts[0].frac = clock.frac;
+        edata->ts[0].tick = clock.tick;
+        time_add(&(edata->ts[0]), edata->xs[0], edata->xs[1]);
+        edata->xs[2] = edata->cs[0].a;
+    }
+    time_left = time_sub(edata->ts[0], clock); 
+    if(edata->xs[3] == 0xff || time_left < 0){
+        edata->xs[3] = 0xff;
+        return CONTINUE;
+    }
+
+    time_total = edata->xs[0] * TICK_LENGTH + edata->xs[1];
+
+    edata->cs[0].a = ((time_total - time_left) * edata->xs[2])  / time_total;
+    //edata->xs[2] = ((((time_total - time_left) * STRIP_LENGTH) % time_total) * edata->cs[0].a) / time_total; 
+    //edata->xs[2] = edata->cs[0].a;
+    
+    if(edata->xs[2] < 1){
+        edata->xs[2] = 1;
+    }
+    
+    return CONTINUE;
+}
+
 
 // pixel - solid color across the strip: the first bytes of effect data
 rgba_t _pixel_solid(Effect* eff, position_t pos){
@@ -361,10 +487,15 @@ rgba_t _pixel_vu(Effect* eff, position_t pos){
 rgba_t _pixel_pulse(Effect* eff, position_t pos){
     const static rgba_t clear = {0,0,0,0};
     edata_rgba1_char4_int4 *edata = (edata_rgba1_char4_int4*) eff->data;
-    rgba_t color = edata->cs[0];
-    uint32_t cmp = edata->ys[(pos < 32) ? 1 : 0];
-    pos %= 32;
+    //rgba_t color = edata->cs[0];
+    static rgba_t color;
+    uint32_t cmp = edata->ys[(~(pos >> 5)) & 0x1];
+    pos &= 0x1f;
 
+    color.r = edata->cs[0].r;
+    color.g = edata->cs[0].g;
+    color.b = edata->cs[0].b;
+    color.a = edata->cs[0].a;
 
     if(edata->xs[1] & 0x8){
         if(cmp & (1 << pos)){
@@ -375,7 +506,7 @@ rgba_t _pixel_pulse(Effect* eff, position_t pos){
             return color;
         }
         if(cmp & ((1 << pos) << 1)){
-            color.a = edata->xs[3];
+            color.a = edata->cs[0].a - edata->xs[2];
             return color;
         }
     }else{
@@ -387,12 +518,45 @@ rgba_t _pixel_pulse(Effect* eff, position_t pos){
             return color;
         }
         if(cmp & ((1 << pos) >> 1)){
-            color.a = edata->xs[3];
+            color.a = edata->cs[0].a - edata->xs[2];
             return color;
         }
     }
     return clear;
 }
+
+rgba_t _pixel_er_pulse(Effect* eff, position_t pos){
+    const static rgba_t clear = {0,0,0,0};
+    edata_rgba1_char4_time1 *edata = (edata_rgba1_char4_time1*) eff->data;
+    //rgba_t color = edata->cs[0];
+    static rgba_t color;
+    uint8_t target = edata->xs[3];
+
+    color.r = edata->cs[0].r;
+    color.g = edata->cs[0].g;
+    color.b = edata->cs[0].b;
+    color.a = edata->cs[0].a;
+
+    if(pos == target){
+        return color;
+    }
+    if(pos == (target+1)){
+        color.a = edata->xs[2];
+        return color;
+    }
+    if(eff->table->eid == 0x42){
+        if(pos == (target-1)){
+            color.a -= edata->xs[2];
+            return color;
+        }
+    }else{
+        if(pos < target){
+            return color;
+        }
+    }
+    return clear;
+}
+
 
 // pixel - strobe solid color across the strip
 rgba_t _pixel_strobe(Effect* eff, position_t pos){
@@ -403,6 +567,25 @@ rgba_t _pixel_strobe(Effect* eff, position_t pos){
     }
     return clear;
 }
+// pixel - color on if xs[0] <= xs[2] < xs[1]; else clear
+rgba_t _pixel_conditional_range(Effect* eff, position_t pos){
+    const static rgba_t clear = {0,0,0,0};
+    edata_rgba1_char4 *edata = (edata_rgba1_char4*)eff->data;
+    if(edata->xs[0] <= edata->xs[2] && edata->xs[2] < edata->xs[1]){
+        return edata->cs[0];
+    }
+    return clear;
+}
+// pixel - color on if xs[0] >= 0
+rgba_t _pixel_conditional_x1(Effect* eff, position_t pos){
+    const static rgba_t clear = {0,0,0,0};
+    edata_rgba1_char4 *edata = (edata_rgba1_char4*)eff->data;
+    if(edata->xs[0]){
+        return edata->cs[0];
+    }
+    return clear;
+}
+
 
 // msg - do nothing, continue
 bool_t _msg_nothing(Effect* eff, canpacket_t* data){
@@ -433,6 +616,19 @@ bool_t _msg_copy(Effect* eff, canpacket_t* data){
         // Set remaining bits to 0 since the uC won't do that for us
         memset(eff->data + CAN_DATA_SIZE, 0x00, eff->table->size - CAN_DATA_SIZE);
     }
+    return CONTINUE;
+}
+
+// msg - copy data bytes over the effect data 
+bool_t _msg_copytick(Effect* eff, canpacket_t* data){
+    // data->data[0:3] RGBA color
+    // data->data[4] # ticks later to start
+    // data->data[5] # ticks later to stop
+    // eff->data[6] tick number
+    memcpy(eff->data, data->data, 4);
+    eff->data[4] = data->data[4];
+    //eff->data[4] = data->data[4] + eff->data[6];
+    //eff->data[5] = data->data[5] + eff->data[6];
     return CONTINUE;
 }
 
@@ -473,6 +669,7 @@ bool_t _msg_strobe(Effect* eff, canpacket_t* data){
         default:
         break;
     }
+    return CONTINUE;
 }
 
 /* End Effect Functions */
@@ -520,9 +717,25 @@ EffectTable const effect_table[NUM_EFFECTS] = {
     {0x14, sizeof(edata_rgba1_char4_int4), _setup_copy, _tick_pulse,    _pixel_pulse,   _msg_pulse},
     // Fade across; RGBA; msg changes color & sends pulse; data[5] is nothing, data[6] is 'rate' & direction
     // Not efficiently implemented, but lets us reuse a lot of code
-    {0x16, sizeof(edata_rgba1_char4_int4), _setup_copy, _tick_fadeacross,    _pixel_pulse,   _msg_pulse},
+    {0x16, sizeof(edata_rgba1_char4_int4), _setup_pulse, _tick_fadeacross,    _pixel_pulse,   _msg_pulse},
 
     // Strobe; RGBA; msg changes color/rate
     {0x18, sizeof(edata_rgba1_char4), _setup_copy, _tick_strobe, _pixel_strobe, _msg_strobe},
+    // Strobe to pattern; RGBA; msg sets color, on & off times
+    {0x20, sizeof(edata_rgba1_char4), _setup_copy, _tick_strobe, _pixel_conditional_range, _msg_copy},
+    // Solid color for n ticks; msg sets color & on time
+    {0x21, sizeof(edata_rgba1_char4), _setup_copy, _tick_subdecrement, _pixel_conditional_x1, _msg_copy},
+
+
+
+    // Synchronous events that @ervanalb wants
+    // Strobe
+    {0x40, sizeof(edata_rgba1_char4_time1), _setup_copy, _tick_timeout, _pixel_solid, _msg_stop},
+    // Fade across
+    {0x41, sizeof(edata_rgba1_char4_time1), _setup_copy, _tick_timeout_scroll, _pixel_er_pulse, _msg_stop},
+    // Chaser
+    {0x42, sizeof(edata_rgba1_char4_time1), _setup_copy, _tick_timeout_scroll, _pixel_er_pulse, _msg_stop},
+    // Fade in
+    {0x43, sizeof(edata_rgba1_char4_time1), _setup_copy, _tick_timeout_fade, _pixel_solid, _msg_stop},
 };
 

@@ -1,10 +1,24 @@
+#define mallog_getpagesize 256
+#define VALUE_TO_STRING(x) #x
+#define VALUE(x) VALUE_TO_STRING(x)
+#define VAR_NAME_VALUE(var) #var "="  VALUE(var)
+
 #include "bespeckle.h"
-#include "effects.c"
+#include "effects.h"
 
 #include <stdlib.h>
 
 // Effects stack (initially empty)
+#define EFFECTS_HEAP_SIZE 16
+#define EFFECT_UNUSED 0xffffffff
 Effect* effects = NULL;
+Effect effects_heap[EFFECTS_HEAP_SIZE]; //XXX
+
+void init_effects_heap(){
+    for(int i = 0; i < EFFECTS_HEAP_SIZE; i++){
+        free_effect(effects_heap+i);
+    }
+}
 
 // Parameters
 uint8_t parameters[PARAM_LEN] = {0xff,0xff,0xff,0xff};
@@ -106,44 +120,58 @@ rgba_t hsva_to_rgba(hsva_t in){
 }
 
 /* End color functions */
+;
 
-Effect* tick_all(Effect* eff, fractick_t ft){
+void time_add(tick_t* c, uint32_t b, uint8_t t){
+    uint8_t f = c->frac + t;
+    c->tick += b;
+    if(f < c->frac || f >= TICK_LENGTH){
+        c->tick++;
+        c->frac = f + (0xff - TICK_LENGTH) + 1; //XXX OBO error?
+    }else{
+        c->frac = f;
+    }
+}
+
+int32_t time_sub(tick_t end, tick_t start){
+    // TODO: Test
+    return ((int32_t) end.tick - (int32_t) start.tick) * TICK_LENGTH + ((int32_t) end.frac -(int32_t)  start.frac);
+}
+
+tick_t clock = {0, 0};
+
+Effect* tick_all(Effect* eff, fractick_t ft, uint8_t beat){
     // Send a tick event to every effect
     // If ft is 0, check for deleted effects
     // Return new top of stack
     Effect* prev = NULL;
     Effect* start = eff;
-    static fractick_t last_tick = TICK_LENGTH;
 
-    if(last_tick > ft){
-        // Don't miss 0
-        ft = 0;
-    }
-    last_tick = ft;
-
-    if(ft == 0){
-        while(eff){
-            if(eff->table->tick(eff, ft)){
-                if(prev != NULL){ // && start == eff
-                    // In the middle/end
-                    prev->next = eff->next;
-                    free_effect(eff);
-                    eff = prev->next;
-                }else{
-                    // At the beginning
-                    start = eff->next;
-                    free_effect(eff);
-                    eff = start;
-                }
-            }else{
-                prev = eff;
-                eff = eff->next;
-            }
-        }
+    if(beat){
+        clock.tick++;
+        clock.frac = 0;
     }else{
-        // Simple iteration
-        while(eff){
-            eff->table->tick(eff, ft);
+        // Check for time dilation
+        if(clock.frac < ft){
+            clock.frac = ft;
+        }
+    }
+
+    while(eff){
+        if(eff->table->tick(eff, ft)){
+            if(prev != NULL){ // && start == eff
+                // In the middle/end
+                prev->next = eff->next;
+                free_effect(eff);
+                eff = prev->next;
+            }else{
+                // At the beginning
+                start = eff->next;
+                free_effect(eff);
+                eff = start;
+            }
+        }else{
+            prev = eff;
             eff = eff->next;
         }
     }
@@ -154,14 +182,18 @@ void compose_all(Effect* eff, rgb_t* strip){
     // Compose a list of effects onto a strip
     Effect* eff_head = eff; // keep reference to head of stack
     position_t i;
+    rgb_t px;
     
     for(i = 0; i < STRIP_LENGTH; i++, strip++){
-        *strip = RGB_EMPTY;
+        px = RGB_EMPTY;
         for(eff = eff_head; eff; eff = eff->next){
-            *strip = mix_rgb(eff->table->pixel(eff, i), *strip);
+            px = mix_rgb(eff->table->pixel(eff, i), px);
         }
         // Apply color correction
-        *strip = filter_rgb(*strip, parameters[0], parameters[1], parameters[2], parameters[3]);
+        px = filter_rgb(px, parameters[0], parameters[1], parameters[2], parameters[3]);
+        // Buffer pixel to prevent flicker while sending pixel buffer
+        // Now the failure mode is tearing
+        *strip = px;
     }
 }
 
@@ -246,7 +278,8 @@ void push_effect(Effect** stack, Effect* eff){
 
 void free_effect(Effect* eff){
     // Deallocate space for effect
-    free(eff);
+    //free(eff);
+    eff->next = (Effect*) EFFECT_UNUSED;
 }
 
 void message(canpacket_t* data){
@@ -256,8 +289,11 @@ void message(canpacket_t* data){
             effects = msg_all(effects, data);
         }else{
             switch(data->cmd){
+                case CMD_SYNC:
+                    effects = tick_all(effects, data->uid, 0);
+                break;
                 case CMD_TICK:
-                    effects = tick_all(effects, data->uid);
+                    effects = tick_all(effects, data->uid, 1);
                 break;
                 case CMD_MSG:
                     effects = msg_all(effects, data);
@@ -277,6 +313,9 @@ void message(canpacket_t* data){
                     for(i = 0; i < PARAM_LEN; i++){
                         parameters[i] = 0xff;
                     }
+                    // Reset clock
+                    clock.tick = 0;
+                    clock.frac = 0;
                 break;
                 case CMD_PARAM:
                     if(data->uid < PARAM_LEN){
@@ -291,9 +330,18 @@ void message(canpacket_t* data){
         int i;
         for(i = 0; i < NUM_EFFECTS; i++){
             if(effect_table[i].eid == data->cmd){
+                // Remove effect with the same uid
+                pop_effect(&effects, data->uid);
                 // Found a match. Attempt to malloc
                 // TODO: this might be 1-4 bytes larger than nessassary? 
-                Effect* eff = malloc(sizeof(Effect) + effect_table[i].size);
+                //Effect* eff = malloc(sizeof(Effect) + effect_table[i].size);
+                Effect* eff = NULL;
+                for(int i = 0; i < EFFECTS_HEAP_SIZE; i++){
+                    if(effects_heap[i].next == (Effect*) EFFECT_UNUSED){
+                        eff = effects_heap + i;
+                        break;
+                    }
+                }
                 if(eff == NULL){
                     // malloc failed! :(
                     return;

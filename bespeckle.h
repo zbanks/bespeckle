@@ -3,7 +3,7 @@
 
 #include <stdint.h>
 #ifndef NOHARDWARE
-#include "led_strip_driver.h"
+//#include "led_strip_driver.h"
 #else
 // Defined STRIP_LENGTH in effects.c
 
@@ -44,13 +44,15 @@
 #define FLAG_CMD     0x80
 #define FLAG_CMD_MSG 0x40 // This gives 6 bits for additional msg parameters
 
-#define CMD_TICK     0x80
+#define CMD_SYNC     0x80
 #define CMD_MSG      0x81
 #define CMD_STOP     0x82
 
 #define CMD_RESET    0x83
 #define CMD_REBOOT   0x84 // TODO
 #define CMD_PARAM    0x85
+
+#define CMD_TICK     0x88
 
 #define CONTINUE     0
 #define STOP         1
@@ -97,6 +99,8 @@ typedef struct {
 	*/
 } hsva_t;
 
+void init_effects_heap(void);
+
 // Convert between different color formats
 rgb_t pack_rgba(rgba_t);
 rgba_t unpack_rgb(rgb_t);
@@ -131,7 +135,7 @@ typedef struct Effect {
 	struct Effect * next;
 	struct EffectTable* table;
 	uint8_t uid;
-	uint8_t data[];
+	uint8_t data[32] __attribute__ ((aligned(4))); // I'm a bad person XXX
 } Effect;
 
 typedef struct EffectTable {
@@ -143,11 +147,20 @@ typedef struct EffectTable {
 	bool_t (* msg)(struct Effect *, canpacket_t*);
 } EffectTable;
 
+typedef struct tick_t {
+    uint32_t tick:24;
+    fractick_t frac:8;
+} tick_t;
+
+extern tick_t clock;
+
+void time_add(tick_t*, uint32_t, uint8_t);
+int32_t time_sub(tick_t, tick_t);
 
 // Calls `tick` on every Effect in the linked list;
 // Removes Effects from the list that have nonzero return values when fractick == 0
 // Always calls tick with fractick = 0 for every beat
-Effect* tick_all(Effect*, fractick_t);
+Effect* tick_all(Effect*, fractick_t, uint8_t);
 
 // Composites a list of effects into a single set of packed pixels
 void compose_all(Effect*, rgb_t*);

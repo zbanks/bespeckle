@@ -1,4 +1,5 @@
 #include "bespeckle.c"
+#include "effects.c"
 
 #include <stdio.h>
 
@@ -39,11 +40,13 @@ void print_strip_html(){
 int main(){ 
     int i;
     canpacket_t msg1 = {0x03, 'a', {0x80, 20, 23, 0x00, 0x00, 0x00}};
-    canpacket_t msg2 = {0x14 , 'b', {0x00, 0x00, 0x00, 0xff, 0x00, 0x02}};
+    canpacket_t msg2 = {0x43 , 'b', {0x00, 0x00, 0x00, 0xff, 0x04, 0x00}};
+    canpacket_t msg_sync = {CMD_SYNC, 0, {0, 0, 0, 0, 0, 0}};
     canpacket_t msg_tick = {CMD_TICK, 0, {0, 0, 0, 0, 0, 0}};
     //hsva_t color = {0, 255, 255, 0};
     //printf("<style>div{ width: 500px; height: 10px; margin: 0; }</style>\n\n");
     printf("<style>span{ width: 5; height: 5; margin: 0px; padding: 0px; display: inline-block; }\ndiv{font-size: 0; height: 5px; margin-bottom: 0px;}</style>\n\n");
+    init_effects_heap();
     message(&msg1);
 
     for(i = 0; i < 256; i++){
@@ -54,16 +57,17 @@ int main(){
         ((hsva_t *) msg1.data)->a = 0xff;
         */
 #define FT 10
-        msg_tick.uid = (i % FT) * (240 / FT);
-        message(&msg_tick);
-        print_strip_html();
-        if(i == 10){
-            message(&msg2);
+        msg_sync.uid = (i % FT) * (240 / FT);
+        if(i % FT == 0){
+            message(&msg_tick);
         }
+        message(&msg_sync);
+        print_strip_html();
         //if((i % 50) == 0 && i > 10){
-        if(i == 11){
-            msg2.cmd = CMD_MSG;
-            msg2.data[0] = 1;
+        //if(i % 11 == 0 && i < 12){
+        if(i == 12){
+            msg2.data[0] += 8;
+            //msg2.uid += 1;
             message(&msg2);
         }
 
