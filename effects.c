@@ -335,7 +335,11 @@ bool_t _tick_timeout_scroll(Effect* eff, fractick_t ft){
     }
 
     edata->xs[3] = (t * STRIP_LENGTH)  / time_total;
-    edata->xs[2] = (((t * STRIP_LENGTH) % time_total) * edata->cs[0].a) / time_total; 
+    if(effects_running < EFFECTS_SLOWDOWN){
+        edata->xs[2] = (((t * STRIP_LENGTH) % time_total) * edata->cs[0].a) / time_total; 
+    }else{
+        edata->xs[2] = edata->cs[0].a;
+    }
     //edata->xs[2] = edata->cs[0].a;
     
     if(edata->xs[2] < 1){
@@ -483,7 +487,8 @@ rgba_t _pixel_shr(Effect* eff, position_t pos){
 rgba_t _pixel_rainbow(Effect* eff, position_t pos){
     static hsva_t color = {0x00, 0xff, 0xff, 0xff};
     edata_char4 *edata = (edata_char4*)eff->data;
-    color.h = (edata->xs[0] * edata->xs[1] + (edata->xs[3] / edata->xs[1]) + pos * edata->xs[2]) & 0xff;
+    //color.h = (edata->xs[0] * edata->xs[1] + (edata->xs[3] / edata->xs[1]) + pos * edata->xs[2]) & 0xff;
+    color.h = (clock.tick * edata->xs[1] + ((edata->xs[1] * TICK_LENGTH) / clock.frac) + pos * edata->xs[2]) & 0xff;
     //color.h = pos;
     return hsva_to_rgba(color);
 }

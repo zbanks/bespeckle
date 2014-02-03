@@ -100,6 +100,7 @@ typedef struct {
 } hsva_t;
 
 void init_effects_heap(void);
+uint8_t effects_running;
 
 // Convert between different color formats
 rgb_t pack_rgba(rgba_t);

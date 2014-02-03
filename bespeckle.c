@@ -9,7 +9,7 @@
 #include <stdlib.h>
 
 // Effects stack (initially empty)
-#define EFFECTS_HEAP_SIZE 16
+#define EFFECTS_HEAP_SIZE 50
 #define EFFECT_UNUSED 0xffffffff
 Effect* effects = NULL;
 Effect effects_heap[EFFECTS_HEAP_SIZE]; //XXX
@@ -18,6 +18,7 @@ void init_effects_heap(){
     for(int i = 0; i < EFFECTS_HEAP_SIZE; i++){
         free_effect(effects_heap+i);
     }
+    effects_running = 0;
 }
 
 // Parameters
@@ -55,6 +56,10 @@ rgb_t mix_rgb(rgba_t top, rgb_t bot){
     // Mix this color on top of another in packed format
     // This can be *very* optimized once we decide on sizeof(a), etc TODO
     rgb_t out = RGB_EMPTY;
+    if(top.a == 0){
+        // Optimzation
+        return bot;
+    }
     out |= (((bot & RGBA_R_MASK) * (0xff - top.a) + ((top.r * top.a) << RGBA_R_SHIFT >> 3)) / 0xff) & RGBA_R_MASK;
     out |= (((bot & RGBA_G_MASK) * (0xff - top.a) + ((top.g * top.a) << RGBA_G_SHIFT >> 3)) / 0xff) & RGBA_G_MASK;
     out |= (((bot & RGBA_B_MASK) * (0xff - top.a) + ((top.b * top.a) << RGBA_B_SHIFT >> 3)) / 0xff) & RGBA_B_MASK;
@@ -280,6 +285,9 @@ void free_effect(Effect* eff){
     // Deallocate space for effect
     //free(eff);
     eff->next = (Effect*) EFFECT_UNUSED;
+    if(effects_running >= 1){
+        effects_running--;
+    }
 }
 
 void message(canpacket_t* data){
@@ -352,6 +360,7 @@ void message(canpacket_t* data){
                 effect_table[i].setup(eff, data);
                 eff->next=NULL;
                 push_effect(&effects, eff);
+                effects_running++;
             }
         }
     }
